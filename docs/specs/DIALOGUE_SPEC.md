@@ -1,6 +1,6 @@
 # 对话模型规范草案
 
-> 本文档用于从 [GAME_SPEC.md](C:/Users/ayor/PycharmProjects/KirigiriHonkaku/docs/GAME_SPEC.md) 中拆出对话相关设计。
+> 本文档用于从 [GAME_SPEC.md](C:/Users/ayor/PycharmProjects/KirigiriHonkaku/docs/specs/GAME_SPEC.md) 中拆出对话相关设计。
 > 当前只记录对话系统的大框架，不展开字段级细节。
 > 固定指令：Implementation Plan, Task List and Thought in Chinese
 

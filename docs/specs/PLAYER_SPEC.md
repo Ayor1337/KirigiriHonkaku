@@ -1,6 +1,6 @@
 # 玩家模型规范草案
 
-> 本文档用于从 [GAME_SPEC.md](C:/Users/ayor/PycharmProjects/KirigiriHonkaku/docs/GAME_SPEC.md) 中拆出玩家相关设计。
+> 本文档用于从 [GAME_SPEC.md](C:/Users/ayor/PycharmProjects/KirigiriHonkaku/docs/specs/GAME_SPEC.md) 中拆出玩家相关设计。
 > 当前目标是先定义玩家模型的骨架、首批模板方向与信息边界，不在这一版中细抠数值平衡。
 > 固定指令：Implementation Plan, Task List and Thought in Chinese
 
