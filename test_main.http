@@ -1,11 +1,43 @@
-# Test your FastAPI endpoints
+# Health check
 
-GET http://127.0.0.1:8000/
+GET http://127.0.0.1:8000/api/v1/health
 Accept: application/json
 
 ###
 
-GET http://127.0.0.1:8000/hello/User
+# Create session
+
+POST http://127.0.0.1:8000/api/v1/sessions
+Content-Type: application/json
+
+{
+  "title": "Case Zero",
+  "case_template_key": "case-zero",
+  "map_template_key": "map-zero",
+  "truth_template_key": "truth-zero"
+}
+
+###
+
+# Submit action
+
+POST http://127.0.0.1:8000/api/v1/actions
+Content-Type: application/json
+
+{
+  "session_id": "replace-me",
+  "action_type": "move",
+  "actor_id": "player",
+  "payload": {
+    "target_location_id": "lobby"
+  }
+}
+
+###
+
+# Fetch session
+
+GET http://127.0.0.1:8000/api/v1/sessions/replace-me
 Accept: application/json
 
 ###
