@@ -20,6 +20,8 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
         session = uow.sessions.get(payload.session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found.")
+        if session.status != "ready":
+            raise HTTPException(status_code=409, detail="Session world state has not been bootstrapped.")
 
         # 先结算硬状态，再交给 AI Runtime 处理受限软状态。
         engine_result = container.game_engine.process(payload, session)

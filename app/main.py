@@ -14,6 +14,9 @@ from app.db.session import create_db_engine, create_session_factory
 from app.engine.service import GameEngine
 from app.models import *  # noqa: F403
 from app.repositories.uow import SqlAlchemyUnitOfWork
+from app.seeds.world import DefaultWorldSeedProvider
+from app.services.world_bootstrap import WorldBootstrapService
+from app.services.world_state import WorldStateService
 from app.storage.file_storage import FileStorage
 
 
@@ -25,6 +28,8 @@ class AppContainer:
     file_storage: FileStorage
     game_engine: GameEngine
     ai_runtime: StubAiRuntime
+    world_bootstrap_service: WorldBootstrapService
+    world_state_service: WorldStateService
     uow_factory: Callable[[], SqlAlchemyUnitOfWork]
     db_engine: object
 
@@ -36,11 +41,14 @@ def build_container(settings: Settings) -> AppContainer:
     session_factory = create_session_factory(db_engine)
     file_storage = FileStorage(settings.resolved_data_root)
     uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
+    seed_provider = DefaultWorldSeedProvider()
     return AppContainer(
         settings=settings,
         file_storage=file_storage,
         game_engine=GameEngine(),
         ai_runtime=StubAiRuntime(),
+        world_bootstrap_service=WorldBootstrapService(uow_factory, file_storage, seed_provider),
+        world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,
         db_engine=db_engine,
     )

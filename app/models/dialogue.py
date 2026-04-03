@@ -1,7 +1,7 @@
 """对话体系模型。"""
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.types import JSON_VARIANT
@@ -22,6 +22,18 @@ class DialogueModel(IdMixin, AuditMixin, Base):
     transcript_file_path: Mapped[str | None] = mapped_column(Text)
     tag_flags: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
 
+    session: Mapped["SessionModel"] = relationship(back_populates="dialogues")
+    location: Mapped["LocationModel"] = relationship(back_populates="dialogues")
+    participants: Mapped[list["DialogueParticipantModel"]] = relationship(
+        back_populates="dialogue",
+        cascade="all, delete-orphan",
+    )
+    utterances: Mapped[list["UtteranceModel"]] = relationship(
+        back_populates="dialogue",
+        cascade="all, delete-orphan",
+        order_by="UtteranceModel.sequence_no",
+    )
+
 
 class DialogueParticipantModel(IdMixin, Base):
     """对话参与者关系。"""
@@ -32,6 +44,9 @@ class DialogueParticipantModel(IdMixin, Base):
     character_id: Mapped[str] = mapped_column(ForeignKey("character.id"), nullable=False)
     participant_role: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    dialogue: Mapped["DialogueModel"] = relationship(back_populates="participants")
+    character: Mapped["CharacterModel"] = relationship(back_populates="dialogue_participations")
 
 
 class UtteranceModel(IdMixin, Base):
@@ -47,3 +62,6 @@ class UtteranceModel(IdMixin, Base):
     tone_tag: Mapped[str | None] = mapped_column(String(64))
     utterance_flags: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    dialogue: Mapped["DialogueModel"] = relationship(back_populates="utterances")
+    speaker_character: Mapped["CharacterModel"] = relationship(back_populates="utterances")

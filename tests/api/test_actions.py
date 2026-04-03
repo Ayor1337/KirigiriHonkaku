@@ -1,18 +1,42 @@
 from fastapi.testclient import TestClient
 
 
-def test_submit_action_returns_structured_action_result(app):
+def _create_session(client: TestClient, title: str = "Action Case") -> dict:
+    response = client.post(
+        "/api/v1/sessions",
+        json={
+            "title": title,
+            "case_template_key": "case-action",
+            "map_template_key": "map-action",
+            "truth_template_key": "truth-action",
+        },
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_submit_action_rejects_draft_session_before_world_bootstrap(app):
     with TestClient(app) as client:
-        session_response = client.post(
-            "/api/v1/sessions",
+        created = _create_session(client, title="Draft Action Case")
+        action_response = client.post(
+            "/api/v1/actions",
             json={
-                "title": "Action Case",
-                "case_template_key": "case-action",
-                "map_template_key": "map-action",
-                "truth_template_key": "truth-action",
+                "session_id": created["id"],
+                "action_type": "move",
+                "actor_id": "player",
+                "payload": {"target_location_id": "archive-room"},
             },
         )
-        session_id = session_response.json()["id"]
+
+    assert action_response.status_code == 409
+    assert action_response.json()["detail"] == "Session world state has not been bootstrapped."
+
+
+def test_submit_action_returns_structured_action_result(app):
+    with TestClient(app) as client:
+        session_id = _create_session(client)["id"]
+        bootstrap_response = client.post(f"/api/v1/sessions/{session_id}/bootstrap")
+        assert bootstrap_response.status_code == 200
 
         action_response = client.post(
             "/api/v1/actions",

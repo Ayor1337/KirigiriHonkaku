@@ -30,3 +30,12 @@ class SessionResponse(BaseModel):
     map_template_key: str | None = None
     truth_template_key: str | None = None
     data_directories: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionBootstrapResponse(BaseModel):
+    """世界 bootstrap 接口返回结构。"""
+
+    session_id: str
+    status: str
+    created_counts: dict[str, int] = Field(default_factory=dict)
+    root_ids: dict[str, str] = Field(default_factory=dict)

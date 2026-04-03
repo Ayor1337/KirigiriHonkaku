@@ -1,7 +1,7 @@
 """事件模型。"""
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.types import JSON_VARIANT
@@ -24,6 +24,13 @@ class EventModel(IdMixin, AuditMixin, Base):
     is_public_event: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     rule_flags: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
 
+    session: Mapped["SessionModel"] = relationship(back_populates="events")
+    location: Mapped["LocationModel"] = relationship(back_populates="events")
+    participants: Mapped[list["EventParticipantModel"]] = relationship(
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
+
 
 class EventParticipantModel(IdMixin, AuditMixin, Base):
     """事件参与者关系。"""
@@ -34,3 +41,6 @@ class EventParticipantModel(IdMixin, AuditMixin, Base):
     character_id: Mapped[str] = mapped_column(ForeignKey("character.id"), nullable=False)
     participant_role: Mapped[str | None] = mapped_column(String(64))
     attendance_state: Mapped[str | None] = mapped_column(String(64))
+
+    event: Mapped["EventModel"] = relationship(back_populates="participants")
+    character: Mapped["CharacterModel"] = relationship(back_populates="event_participations")
