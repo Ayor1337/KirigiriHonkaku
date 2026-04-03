@@ -29,11 +29,16 @@ class FileStorage:
             directories[subdir] = str(path)
         return directories
 
+    def write_session_file(self, session_uuid: str, category: str, filename: str, content: str) -> str:
+        """向会话目录下的指定类别写入文本文件。"""
+
+        target_dir = self.root / "sessions" / session_uuid / category
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / filename
+        target.write_text(content, encoding="utf-8")
+        return str(target)
+
     def write_session_history(self, session_uuid: str, filename: str, content: str) -> str:
         """向会话历史目录写入动作结果文件。"""
 
-        history_dir = self.root / "sessions" / session_uuid / "history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        target = history_dir / filename
-        target.write_text(content, encoding="utf-8")
-        return str(target)
+        return self.write_session_file(session_uuid, "history", filename, content)

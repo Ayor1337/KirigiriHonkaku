@@ -1,7 +1,7 @@
 """会话根模型。"""
 
 from sqlalchemy import Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.common import AuditMixin, IdMixin
@@ -28,3 +28,34 @@ class SessionModel(IdMixin, AuditMixin, Base):
     story_file_path: Mapped[str | None] = mapped_column(Text)
     history_file_path: Mapped[str | None] = mapped_column(Text)
     truth_file_path: Mapped[str | None] = mapped_column(Text)
+
+    characters: Mapped[list["CharacterModel"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    player: Mapped["PlayerModel | None"] = relationship(
+        back_populates="session",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    npcs: Mapped[list["NpcModel"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    game_map: Mapped["MapModel | None"] = relationship(
+        back_populates="session",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    clues: Mapped[list["ClueModel"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    events: Mapped[list["EventModel"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    dialogues: Mapped[list["DialogueModel"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )

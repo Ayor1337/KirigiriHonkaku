@@ -4,6 +4,12 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.repositories.clue_repository import ClueRepository
+from app.repositories.dialogue_repository import DialogueRepository
+from app.repositories.event_repository import EventRepository
+from app.repositories.map_repository import MapRepository
+from app.repositories.npc_repository import NpcRepository
+from app.repositories.player_repository import PlayerRepository
 from app.repositories.session_repository import SessionRepository
 
 
@@ -14,12 +20,24 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self.session: Session | None = None
         self.sessions: SessionRepository | None = None
+        self.players: PlayerRepository | None = None
+        self.npcs: NpcRepository | None = None
+        self.maps: MapRepository | None = None
+        self.clues: ClueRepository | None = None
+        self.events: EventRepository | None = None
+        self.dialogues: DialogueRepository | None = None
 
     def __enter__(self) -> "SqlAlchemyUnitOfWork":
         """打开事务作用域并初始化仓库。"""
 
         self.session = self._session_factory()
         self.sessions = SessionRepository(self.session)
+        self.players = PlayerRepository(self.session)
+        self.npcs = NpcRepository(self.session)
+        self.maps = MapRepository(self.session)
+        self.clues = ClueRepository(self.session)
+        self.events = EventRepository(self.session)
+        self.dialogues = DialogueRepository(self.session)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

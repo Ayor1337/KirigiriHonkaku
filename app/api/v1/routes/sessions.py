@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.schemas.session import CreateSessionRequest, SessionResponse
+from app.schemas.session import CreateSessionRequest, SessionBootstrapResponse, SessionResponse
+from app.services.world_bootstrap import SessionAlreadyBootstrappedError, SessionNotFoundError
 
 
 router = APIRouter()
@@ -23,6 +24,29 @@ def create_session(payload: CreateSessionRequest, request: Request) -> SessionRe
         response = SessionResponse.model_validate(session, from_attributes=True)
         response.data_directories = directories
         return response
+
+
+@router.post("/{session_id}/bootstrap", response_model=SessionBootstrapResponse)
+def bootstrap_session_world(session_id: str, request: Request) -> SessionBootstrapResponse:
+    """根据会话模板 key 装配最小世界状态。"""
+
+    container = request.app.state.container
+    try:
+        result = container.world_bootstrap_service.bootstrap(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.") from exc
+    except SessionAlreadyBootstrappedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Session world state has already been bootstrapped.",
+        ) from exc
+
+    return SessionBootstrapResponse(
+        session_id=result.session_id,
+        status=result.status,
+        created_counts=result.created_counts,
+        root_ids=result.root_ids,
+    )
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
