@@ -38,4 +38,4 @@ pytest-cache-files-*/
 .DS_Store
 Thumbs.db
 
-alembic
+.alembic/
