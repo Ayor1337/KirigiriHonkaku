@@ -42,3 +42,30 @@ class FileStorage:
         """向会话历史目录写入动作结果文件。"""
 
         return self.write_session_file(session_uuid, "history", filename, content)
+
+    def read_text(self, path_str: str | None) -> str:
+        """读取已有文本文件，不存在时返回空串。"""
+
+        if not path_str:
+            return ""
+        path = Path(path_str)
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8")
+
+    def write_text(self, path_str: str, content: str) -> str:
+        """按绝对路径覆盖写入文本。"""
+
+        path = Path(path_str)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        return str(path)
+
+    def append_text(self, path_str: str, content: str) -> str:
+        """按绝对路径追加文本，不存在则自动创建。"""
+
+        path = Path(path_str)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(content)
+        return str(path)

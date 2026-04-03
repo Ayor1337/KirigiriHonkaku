@@ -1,0 +1,1 @@
+项目遵循中文注释和中文领域术语，强调 KISS、渐进式开发、先调研后设计。代码风格偏向小而直接的服务/仓储/模型分层：schemas 定义 API 数据结构，repositories 封装聚合读取，engine 负责规则链，services 负责 bootstrap/world state，storage 负责文件落盘。AI 与规则边界严格分离：硬状态只由 Engine 修改，AI 只能生成文本并在 SoftStatePatch 允许范围内调整软状态。

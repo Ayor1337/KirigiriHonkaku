@@ -17,6 +17,8 @@ HARD_STATE_KEYS = {
     "accusation_state",
     "schedule_mode",
 }
+ALLOWED_NPC_SOFT_STATE_KEYS = {"attitude_to_player", "alertness_level", "emotion_tag"}
+ALLOWED_DIALOGUE_SOFT_STATE_KEYS = {"tag_flags"}
 
 
 class ActionRequest(BaseModel):
@@ -49,19 +51,39 @@ class SoftStatePatch(BaseModel):
     """AI Runtime 返回的受限软状态更新。"""
 
     allowed: bool = True
-    updates: dict[str, Any] = Field(default_factory=dict)
-    applied_updates: dict[str, Any] = Field(default_factory=dict)
+    npc_updates: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    dialogue_updates: dict[str, Any] = Field(default_factory=dict)
     rejected_keys: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def split_hard_state_updates(self) -> "SoftStatePatch":
-        """剥离越权的硬状态字段，确保 AI 不直接改世界硬状态。"""
+        """剥离越权字段，确保 AI 不直接改世界硬状态。"""
 
-        rejected = [key for key in self.updates if key in HARD_STATE_KEYS]
-        applied = {key: value for key, value in self.updates.items() if key not in HARD_STATE_KEYS}
-        self.rejected_keys = rejected
-        self.applied_updates = applied
-        self.allowed = self.allowed and not rejected
+        filtered_npc_updates: dict[str, dict[str, Any]] = {}
+        rejected_keys: list[str] = []
+
+        for npc_key, updates in self.npc_updates.items():
+            allowed_updates: dict[str, Any] = {}
+            for field_name, value in updates.items():
+                full_key = f"{npc_key}.{field_name}"
+                if field_name in HARD_STATE_KEYS or field_name not in ALLOWED_NPC_SOFT_STATE_KEYS:
+                    rejected_keys.append(full_key)
+                    continue
+                allowed_updates[field_name] = value
+            if allowed_updates:
+                filtered_npc_updates[npc_key] = allowed_updates
+
+        filtered_dialogue_updates: dict[str, Any] = {}
+        for field_name, value in self.dialogue_updates.items():
+            if field_name in HARD_STATE_KEYS or field_name not in ALLOWED_DIALOGUE_SOFT_STATE_KEYS:
+                rejected_keys.append(f"dialogue.{field_name}")
+                continue
+            filtered_dialogue_updates[field_name] = value
+
+        self.npc_updates = filtered_npc_updates
+        self.dialogue_updates = filtered_dialogue_updates
+        self.rejected_keys = rejected_keys
+        self.allowed = self.allowed and not rejected_keys
         return self
 
 
@@ -74,6 +96,7 @@ class ActionResult(BaseModel):
     scene_snapshot: SceneSnapshot
     ai_tasks: list[AiTask] = Field(default_factory=list)
     soft_state_patch: SoftStatePatch = Field(default_factory=SoftStatePatch)
+    narrative_text: str | None = None
     storage_refs: dict[str, str] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
 

@@ -1,0 +1,1 @@
+KirigiriHonkaku 是一个以 FastAPI + SQLAlchemy + Alembic 构建的单体后端，用于本格推理游戏。整体架构遵循 API -> Game Engine -> AI Runtime -> 存储链路，Engine 负责硬状态规则结算，AI Runtime 负责文本表达与受限软状态调整，文件系统承载 STORY/MEMORY/对话摘要与全文等长文本。根目录主要包含 app（应用代码）、alembic（迁移）、docs（设计/计划文档）、tests（测试）。
