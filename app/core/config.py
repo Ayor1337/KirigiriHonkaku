@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +14,10 @@ class Settings(BaseSettings):
     data_root: Path = Path("data")
     auto_create_schema: bool = False
     sql_echo: bool = False
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: str | None = None
+    openai_model: str | None = None
+    openai_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

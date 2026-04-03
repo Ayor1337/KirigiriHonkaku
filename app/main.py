@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from fastapi import FastAPI
 
-from app.ai.runtime import StubAiRuntime
+from app.ai.runtime import NarrativeRuntime, create_narrative_runtime
 from app.api.v1.router import api_router
 from app.core.config import Settings
 from app.db.base import Base
@@ -15,6 +15,7 @@ from app.engine.service import GameEngine
 from app.models import *  # noqa: F403
 from app.repositories.uow import SqlAlchemyUnitOfWork
 from app.seeds.world import DefaultWorldSeedProvider
+from app.services.narrative import NarrativeService
 from app.services.world_bootstrap import WorldBootstrapService
 from app.services.world_state import WorldStateService
 from app.storage.file_storage import FileStorage
@@ -27,7 +28,8 @@ class AppContainer:
     settings: Settings
     file_storage: FileStorage
     game_engine: GameEngine
-    ai_runtime: StubAiRuntime
+    ai_runtime: NarrativeRuntime
+    narrative_service: NarrativeService
     world_bootstrap_service: WorldBootstrapService
     world_state_service: WorldStateService
     uow_factory: Callable[[], SqlAlchemyUnitOfWork]
@@ -42,11 +44,19 @@ def build_container(settings: Settings) -> AppContainer:
     file_storage = FileStorage(settings.resolved_data_root)
     uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
     seed_provider = DefaultWorldSeedProvider()
+    ai_runtime = create_narrative_runtime(
+        base_url=settings.openai_base_url,
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        timeout_seconds=settings.openai_timeout_seconds,
+    )
+    narrative_service = NarrativeService(file_storage, ai_runtime)
     return AppContainer(
         settings=settings,
         file_storage=file_storage,
         game_engine=GameEngine(),
-        ai_runtime=StubAiRuntime(),
+        ai_runtime=ai_runtime,
+        narrative_service=narrative_service,
         world_bootstrap_service=WorldBootstrapService(uow_factory, file_storage, seed_provider),
         world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,

@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
 
+from pathlib import Path
+
 def _create_session(client: TestClient, title: str = "Action Case") -> dict:
     response = client.post(
         "/api/v1/sessions",
@@ -160,15 +162,41 @@ def test_talk_action_creates_dialogue_when_npc_is_in_same_location(app):
     assert payload["state_delta_summary"]["dialogue"]["target_npc_key"] == "journalist"
     assert payload["scene_snapshot"]["details"]["latest_dialogue"]["target_npc_key"] == "journalist"
     assert payload["scene_snapshot"]["details"]["latest_dialogue"]["location_key"] == "archive-room"
+    assert payload["narrative_text"]
+    assert payload["storage_refs"]["dialogue_summary"]
+    assert payload["storage_refs"]["dialogue_transcript"]
+    assert payload["storage_refs"]["history_markdown"]
+    assert payload["storage_refs"]["npc_memory:journalist"]
 
     with app.state.container.uow_factory() as uow:
         dialogues = uow.dialogues.list_by_session(session_id)
         session = uow.sessions.get(session_id)
+        npcs = {npc.template_key: npc for npc in uow.npcs.list_by_session(session_id)}
 
     assert session is not None
     assert session.current_time_minute == 10
     assert len(dialogues) == 1
     assert len(dialogues[0].participants) == 2
+    assert dialogues[0].summary_file_path
+    assert dialogues[0].transcript_file_path
+    assert len(dialogues[0].utterances) >= 1
+    assert npcs["journalist"].memory_file_path
+    assert npcs["journalist"].state.attitude_to_player == "guarded"
+    assert npcs["journalist"].state.emotion_tag == "wary"
+
+    transcript_path = Path(dialogues[0].transcript_file_path)
+    summary_path = Path(dialogues[0].summary_file_path)
+    memory_path = Path(npcs["journalist"].memory_file_path)
+    history_path = Path(payload["storage_refs"]["history_markdown"])
+
+    assert transcript_path.exists()
+    assert summary_path.exists()
+    assert memory_path.exists()
+    assert history_path.exists()
+    assert "Journalist" in transcript_path.read_text(encoding="utf-8")
+    assert "archive-room" in summary_path.read_text(encoding="utf-8")
+    assert "本次对话更新" in memory_path.read_text(encoding="utf-8")
+    assert payload["narrative_text"] in history_path.read_text(encoding="utf-8")
 
 
 def test_talk_action_rejects_npc_outside_current_location(app):
