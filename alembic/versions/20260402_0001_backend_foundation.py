@@ -480,3 +480,5 @@ def downgrade() -> None:
         "session",
     ]:
         op.drop_table(table_name)
+
+

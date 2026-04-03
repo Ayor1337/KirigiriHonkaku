@@ -1,6 +1,6 @@
 """暴露度规则模块。"""
 
-from app.models.session import SessionModel
+from app.engine.rules.base import ActionExecutionContext
 from app.schemas.action import ActionRequest
 
 
@@ -9,7 +9,7 @@ class ExposureRule:
 
     name = "exposure"
 
-    def apply(self, action: ActionRequest, session: SessionModel) -> dict:
+    def apply(self, action: ActionRequest, context: ActionExecutionContext) -> dict:
         """返回当前暴露度主值。"""
 
-        return {"exposure_value": session.exposure_value}
+        return {"exposure_value": context.session.exposure_value}

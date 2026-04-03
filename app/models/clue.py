@@ -1,6 +1,6 @@
 """线索模型。"""
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -22,9 +22,11 @@ class ClueModel(IdMixin, AuditMixin, Base):
             "(CASE WHEN current_holder_character_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
             name="clue_current_owner_xor",
         ),
+        UniqueConstraint("session_id", "key", name="uq_clue_session_key"),
     )
 
     session_id: Mapped[str] = mapped_column(ForeignKey("session.id"), nullable=False)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     clue_type: Mapped[str] = mapped_column(String(64), nullable=False)

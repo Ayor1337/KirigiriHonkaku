@@ -73,6 +73,7 @@ class WorldBootstrapService:
             for location_seed in seed["locations"]:
                 location = LocationModel(
                     map=game_map,
+                    key=location_seed['key'],
                     name=location_seed["name"],
                     description=location_seed.get("description"),
                     location_type=location_seed["location_type"],
@@ -211,6 +212,7 @@ class WorldBootstrapService:
             for clue_seed in seed["clues"]:
                 clue = ClueModel(
                     session=session,
+                    key=clue_seed.get("key") or self._slugify(clue_seed["name"]),
                     name=clue_seed["name"],
                     description=clue_seed.get("description"),
                     clue_type=clue_seed["clue_type"],
@@ -291,3 +293,6 @@ class WorldBootstrapService:
     @staticmethod
     def _slugify(value: str) -> str:
         return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+

@@ -1,6 +1,6 @@
 """地图体系模型。"""
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -32,8 +32,10 @@ class LocationModel(IdMixin, AuditMixin, Base):
     """统一空间点模型。"""
 
     __tablename__ = "location"
+    __table_args__ = (UniqueConstraint("map_id", "key", name="uq_location_map_key"),)
 
     map_id: Mapped[str] = mapped_column(ForeignKey("map.id"), nullable=False)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
     parent_location_id: Mapped[str | None] = mapped_column(ForeignKey("location.id"))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
