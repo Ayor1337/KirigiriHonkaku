@@ -1,6 +1,6 @@
 """指认与结局规则模块。"""
 
-from app.models.session import SessionModel
+from app.engine.rules.base import ActionExecutionContext
 from app.schemas.action import ActionRequest
 
 
@@ -9,9 +9,9 @@ class AccusationRule:
 
     name = "accusation"
 
-    def apply(self, action: ActionRequest, session: SessionModel) -> dict:
+    def apply(self, action: ActionRequest, context: ActionExecutionContext) -> dict:
         """在收到 accuse 动作时更新指认状态。"""
 
-        if action.action_type == "accuse":
-            session.accusation_state = "submitted"
-        return {"accusation_state": session.accusation_state}
+        if context.accepted and action.action_type == "accuse":
+            context.session.accusation_state = "submitted"
+        return {"accusation_state": context.session.accusation_state}

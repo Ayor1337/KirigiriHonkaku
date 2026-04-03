@@ -23,8 +23,7 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
         if session.status != "ready":
             raise HTTPException(status_code=409, detail="Session world state has not been bootstrapped.")
 
-        # 先结算硬状态，再交给 AI Runtime 处理受限软状态。
-        engine_result = container.game_engine.process(payload, session)
+        engine_result = container.game_engine.process(payload, session, uow)
         ai_result = container.ai_runtime.run(engine_result)
         history_path = container.file_storage.write_session_history(
             session.uuid,
@@ -32,6 +31,7 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
             json.dumps(
                 {
                     "action_type": payload.action_type,
+                    "status": engine_result.status,
                     "current_time_minute": session.current_time_minute,
                     "generated_text": ai_result.generated_text,
                     "recorded_at": datetime.now(timezone.utc).isoformat(),
@@ -40,12 +40,12 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
         )
         uow.commit()
         return ActionResult(
-            status="accepted",
+            status=engine_result.status,
             action_type=payload.action_type,
             state_delta_summary=engine_result.state_delta_summary,
             scene_snapshot=engine_result.scene_snapshot,
             ai_tasks=engine_result.ai_tasks,
             soft_state_patch=ai_result.soft_state_patch,
             storage_refs={"latest_action_log": history_path},
-            errors=[],
+            errors=engine_result.errors,
         )

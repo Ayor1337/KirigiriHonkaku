@@ -35,6 +35,11 @@ EXPECTED_TABLES = {
     "utterance",
 }
 
+EXPECTED_COLUMNS = {
+    "location": {"key"},
+    "clue": {"key"},
+}
+
 
 def test_alembic_upgrade_applies_fixed_schema_snapshot():
     runtime_root = Path("tests_runtime") / f"alembic-{uuid4().hex}"
@@ -50,6 +55,9 @@ def test_alembic_upgrade_applies_fixed_schema_snapshot():
         try:
             inspector = inspect(engine)
             assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
+            for table_name, expected_columns in EXPECTED_COLUMNS.items():
+                actual_columns = {column["name"] for column in inspector.get_columns(table_name)}
+                assert expected_columns.issubset(actual_columns)
         finally:
             engine.dispose()
     finally:

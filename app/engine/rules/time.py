@@ -1,6 +1,6 @@
 """时间推进规则模块。"""
 
-from app.models.session import SessionModel
+from app.engine.rules.base import ActionExecutionContext
 from app.schemas.action import ActionRequest
 
 
@@ -9,9 +9,14 @@ class TimeRule:
 
     name = "time"
 
-    def apply(self, action: ActionRequest, session: SessionModel) -> dict:
-        """对可推进时间的动作增加会话时间。"""
+    def apply(self, action: ActionRequest, context: ActionExecutionContext) -> dict:
+        """只在动作被接受时推进主循环时间。"""
 
-        if action.action_type in {"move", "investigate", "talk"}:
-            session.current_time_minute += 5
-        return {"current_time_minute": session.current_time_minute}
+        advanced = False
+        if context.accepted and action.action_type in {"move", "investigate", "talk"}:
+            context.session.current_time_minute += 5
+            advanced = True
+        return {
+            "advanced": advanced,
+            "current_time_minute": context.session.current_time_minute,
+        }

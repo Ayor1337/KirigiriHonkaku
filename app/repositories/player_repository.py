@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models.character import DetectiveBoardModel, PlayerKnowledgeModel, PlayerModel
+from app.models.character import CharacterModel, DetectiveBoardModel, PlayerKnowledgeModel, PlayerModel
 
 
 class PlayerRepository:
@@ -18,7 +18,7 @@ class PlayerRepository:
         statement = (
             select(PlayerModel)
             .options(
-                joinedload(PlayerModel.character),
+                joinedload(PlayerModel.character).joinedload(CharacterModel.current_location),
                 joinedload(PlayerModel.state),
                 joinedload(PlayerModel.inventory),
                 joinedload(PlayerModel.knowledge).selectinload(PlayerKnowledgeModel.topics),
@@ -30,3 +30,4 @@ class PlayerRepository:
             .where(PlayerModel.session_id == UUID(session_id))
         )
         return self.db_session.scalar(statement)
+
