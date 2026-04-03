@@ -15,7 +15,7 @@
 
 当前技术栈可以概括为：
 
-**一个以 FastAPI 为后端入口、以 PostgreSQL 为结构化状态存储、以 SQLAlchemy 2.0 + Alembic 为数据层、以 LangChain + LangSmith 为 AI 层基础、并以独立 `data/` 目录承载运行时文本资料的单体后端方案。**
+**一个以 FastAPI 为后端入口、以 PostgreSQL 为结构化状态存储、以 SQLAlchemy 2.0 + Alembic 为数据层、以原生模型接入与自定义 AI Runtime 为 AI 层基础、并以独立 `data/` 目录承载运行时文本资料的单体后端方案。**
 
 ## 3. 后端框架
 
@@ -58,20 +58,17 @@
 - 代码目录、文档目录、运行时目录应分开
 - 会话资料、对话全文、摘要、记忆文本更适合落盘保存
 
-## 6. AI 技术栈
+## 6. AI 技术方向
 
 当前已经确认：
 
-- AI 接入与编排使用 **LangChain**
-- AI 观测与评测使用 **LangSmith**
+- AI 层不依赖外部 AI 编排框架
+- AI 运行时采用原生模型接入 + 自定义运行时组织
+- 模型调用、工具调用、输出解析、运行日志等能力由项目自身控制
 
-当前不采用：
+### 6.1 当前 AI Runtime 承接内容
 
-- LangGraph
-
-### 6.1 LangChain 的定位
-
-LangChain 当前用于承接：
+当前 AI Runtime 用于承接：
 
 - 模型接入
 - Prompt 组织
@@ -79,14 +76,14 @@ LangChain 当前用于承接：
 - 输出解析
 - 对话摘要与记忆更新链路
 
-### 6.2 LangSmith 的定位
+### 6.2 当前技术原则
 
-LangSmith 当前用于承接：
+当前 AI 技术方向遵循：
 
-- 调用追踪
-- 运行时观察
-- 调试分析
-- 评测与质量回看
+- 不把项目运行时绑定到外部 AI 编排框架
+- 规则系统与 AI Runtime 的边界由项目自身掌控
+- 模型接入保持可替换
+- 调用日志、调试与质量观察能力由项目自行设计
 
 ## 7. 同步与异步方向
 
@@ -127,4 +124,4 @@ LangSmith 当前用于承接：
 
 当前技术栈可以先按下面这句话理解：
 
-**这是一个以 FastAPI + PostgreSQL + SQLAlchemy 2.0 + Alembic 为规则与数据基础，以 LangChain + LangSmith 为 AI 基础，并通过 `data/` 目录承接运行时文本资料的单体后端技术方案。**
+**这是一个以 FastAPI + PostgreSQL + SQLAlchemy 2.0 + Alembic 为规则与数据基础，以原生模型接入和自定义 AI Runtime 为 AI 基础，并通过 `data/` 目录承接运行时文本资料的单体后端技术方案。**
