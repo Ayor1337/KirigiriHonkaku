@@ -56,6 +56,7 @@ class GameEngine:
             npcs=uow.npcs.list_by_session(action.session_id),
             game_map=game_map,
             clues=uow.clues.list_by_session(action.session_id),
+            events=uow.events.list_by_session(action.session_id),
             dialogues=uow.dialogues.list_by_session(action.session_id),
             previous_time_minute=session.current_time_minute,
         )
@@ -73,16 +74,42 @@ class GameEngine:
             dialogue_summary = self._create_dialogue(context, uow)
 
         latest_dialogue = dialogue_summary or self._get_latest_dialogue_summary(context)
+        public_context = module_outputs.get("accusation", {}).get("public_context") or self._describe_public_context(context)
+        exposure = module_outputs.get("exposure", {}).get("exposure") or {
+            "previous_value": context.session.exposure_value,
+            "value": context.session.exposure_value,
+            "delta": 0,
+            "previous_level": context.session.exposure_level,
+            "level": context.session.exposure_level,
+        }
+        risk = module_outputs.get("exposure", {}).get("risk") or {
+            "countermeasure_triggered": False,
+            "mode": None,
+            "affected_npc_keys": [],
+        }
+        accusation = module_outputs.get("accusation", {}).get("accusation") or {
+            "state": context.session.accusation_state,
+            "resolution": None,
+            "requested_context_mode": None,
+            "resolved_context_mode": "public" if public_context["is_public"] else "private",
+            "target_npc_key": getattr(context.resolved_target_npc, "template_key", None),
+        }
+        ending = module_outputs.get("accusation", {}).get("ending") or {
+            "ending_type": context.session.ending_type,
+            "session_status": context.session.status,
+        }
+
         scene_snapshot = SceneSnapshot(
             session_id=str(session.id),
             actor_id=action.actor_id,
             current_time_minute=session.current_time_minute,
-            details=self._build_scene_details(context, latest_dialogue),
+            details=self._build_scene_details(context, latest_dialogue, public_context, exposure, risk),
         )
         state_delta_summary = {
             "hard_state_updated": context.accepted,
             "current_time_minute": session.current_time_minute,
             "accusation_state": session.accusation_state,
+            "ending_type": session.ending_type,
             "module_outputs": module_outputs,
             "movement": module_outputs.get("map", {}).get("movement"),
             "investigation": module_outputs.get("clue", {}).get(
@@ -90,6 +117,11 @@ class GameEngine:
                 {"discovered_clues": []},
             ),
             "dialogue": dialogue_summary,
+            "exposure": exposure,
+            "risk": risk,
+            "public_context": public_context,
+            "accusation": accusation,
+            "ending": ending,
         }
         ai_tasks = [
             AiTask(
@@ -98,6 +130,7 @@ class GameEngine:
                     "session_id": str(session.id),
                     "current_time_minute": session.current_time_minute,
                     "status": "accepted" if context.accepted else "rejected",
+                    "ending_type": session.ending_type,
                 },
             )
         ]
@@ -114,6 +147,10 @@ class GameEngine:
             self._resolve_move_target(action, context)
         elif action.action_type == "talk":
             self._resolve_talk_target(action, context)
+        elif action.action_type == "gather":
+            self._resolve_gather_location(action, context)
+        elif action.action_type == "accuse":
+            self._resolve_accuse_target(action, context)
 
     def _resolve_move_target(self, action: ActionRequest, context: ActionExecutionContext) -> None:
         current_location = context.player.character.current_location
@@ -161,6 +198,43 @@ class GameEngine:
             or target_npc.state.current_location_id != current_location.id
             or not target_npc.state.is_available
             or not target_npc.character.can_participate_dialogue
+        ):
+            context.reject("Target NPC is not available in the current location.")
+            return
+
+        context.resolved_target_npc = target_npc
+
+    def _resolve_gather_location(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        current_location = context.player.character.current_location
+        if current_location is None:
+            context.reject("Player has no current location.")
+            return
+
+        target_key = action.payload.get("location_key")
+        if target_key is None:
+            return
+        if not isinstance(target_key, str) or target_key != current_location.key:
+            context.reject("Gather action must target the current location.")
+
+    def _resolve_accuse_target(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        current_location = context.player.character.current_location
+        if current_location is None:
+            context.reject("Player has no current location.")
+            return
+
+        target_npc_key = action.payload.get("target_npc_key")
+        if not isinstance(target_npc_key, str) or not target_npc_key:
+            context.reject("Target NPC key is required.")
+            return
+
+        target_npc = next((npc for npc in context.npcs if npc.template_key == target_npc_key), None)
+        if target_npc is None:
+            context.reject("Target NPC does not exist.")
+            return
+        if (
+            target_npc.state is None
+            or target_npc.state.current_location_id != current_location.id
+            or not target_npc.state.is_available
         ):
             context.reject("Target NPC is not available in the current location.")
             return
@@ -267,6 +341,9 @@ class GameEngine:
         self,
         context: ActionExecutionContext,
         latest_dialogue: dict[str, Any] | None,
+        public_context: dict[str, Any],
+        exposure: dict[str, Any],
+        risk: dict[str, Any],
     ) -> dict[str, Any]:
         current_location = context.player.character.current_location
         if current_location is None:
@@ -276,6 +353,9 @@ class GameEngine:
                 "visible_npcs": [],
                 "investigable_clues": [],
                 "latest_dialogue": latest_dialogue,
+                "public_context": public_context,
+                "risk": risk,
+                "exposure": exposure,
             }
 
         reachable_locations = [
@@ -312,5 +392,55 @@ class GameEngine:
             "visible_npcs": visible_npcs,
             "investigable_clues": investigable_clues,
             "latest_dialogue": latest_dialogue,
+            "public_context": public_context,
+            "risk": risk,
+            "exposure": exposure,
         }
+
+    def _describe_public_context(self, context: ActionExecutionContext) -> dict[str, Any]:
+        current_location = context.player.character.current_location
+        if current_location is None:
+            return {
+                "is_public": False,
+                "source": None,
+                "event_key": None,
+                "location_key": None,
+                "participant_keys": [],
+            }
+
+        current_minute = context.session.current_time_minute
+        npc_keys_by_character_id = {str(npc.character_id): npc.template_key for npc in context.npcs}
+        for event in context.events:
+            if not event.is_public_event or event.location_id != current_location.id:
+                continue
+            if event.event_state == "ended":
+                continue
+            if not (event.start_minute <= current_minute <= event.end_minute):
+                continue
+
+            participant_keys = []
+            for participant in event.participants:
+                if participant.character.kind == "player":
+                    participant_keys.append("player")
+                    continue
+                npc_key = npc_keys_by_character_id.get(str(participant.character_id))
+                if npc_key is not None:
+                    participant_keys.append(npc_key)
+            return {
+                "is_public": True,
+                "source": event.rule_flags.get("source") or "scheduled_event",
+                "event_key": event.rule_flags.get("public_context_key") or f"public-{event.id}",
+                "location_key": current_location.key,
+                "participant_keys": participant_keys,
+            }
+
+        return {
+            "is_public": False,
+            "source": None,
+            "event_key": None,
+            "location_key": current_location.key,
+            "participant_keys": [],
+        }
+
+
 

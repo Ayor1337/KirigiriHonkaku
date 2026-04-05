@@ -1,7 +1,7 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
-
-from pathlib import Path
 
 def _create_session(client: TestClient, title: str = "Action Case") -> dict:
     response = client.post(
@@ -214,3 +214,201 @@ def test_talk_action_rejects_npc_outside_current_location(app):
     assert session is not None
     assert session.current_time_minute == 0
     assert dialogues == []
+
+
+def test_gather_action_creates_public_context_and_raises_exposure(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        _submit_action(client, session_id, "investigate", {})
+        payload = _submit_action(
+            client,
+            session_id,
+            "gather",
+            {"location_key": "archive-room", "reason": "public accusation"},
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["action_type"] == "gather"
+    assert payload["state_delta_summary"]["public_context"]["is_public"] is True
+    assert payload["state_delta_summary"]["public_context"]["source"] == "gather"
+    assert payload["state_delta_summary"]["exposure"]["level"] == "medium"
+    assert payload["state_delta_summary"]["risk"]["countermeasure_triggered"] is True
+
+    with app.state.container.uow_factory() as uow:
+        session = uow.sessions.get(session_id)
+        events = uow.events.list_by_session(session_id)
+        npcs = {npc.template_key: npc for npc in uow.npcs.list_by_session(session_id)}
+
+    assert session is not None
+    assert session.current_time_minute == 15
+    assert session.exposure_level == "medium"
+    assert any(event.event_type == "player_gathering" and event.is_public_event for event in events)
+    assert npcs["journalist"].state is not None
+    assert npcs["journalist"].state.is_under_pressure is True
+
+
+def test_public_accuse_succeeds_with_required_evidence(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        _submit_action(client, session_id, "investigate", {})
+        _submit_action(client, session_id, "gather", {"location_key": "archive-room", "reason": "public accusation"})
+        payload = _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "journalist",
+                "context_mode": "public",
+                "evidence_clue_keys": ["torn-note"],
+                "force_strategy": "standard",
+            },
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["state_delta_summary"]["ending"]["ending_type"] == "success"
+    assert payload["state_delta_summary"]["accusation"]["resolution"] == "success"
+    assert payload["state_delta_summary"]["public_context"]["is_public"] is True
+
+    with app.state.container.uow_factory() as uow:
+        session = uow.sessions.get(session_id)
+
+    assert session is not None
+    assert session.status == "ended"
+    assert session.ending_type == "success"
+    assert session.accusation_state == "resolved"
+
+
+def test_public_accuse_without_required_evidence_fails_to_convict(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        _submit_action(client, session_id, "gather", {"location_key": "archive-room", "reason": "public accusation"})
+        payload = _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "journalist",
+                "context_mode": "public",
+                "evidence_clue_keys": [],
+                "force_strategy": "standard",
+            },
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["state_delta_summary"]["ending"]["ending_type"] == "failure_insufficient_evidence"
+    assert payload["state_delta_summary"]["accusation"]["resolution"] == "insufficient_evidence"
+
+
+def test_private_accuse_true_culprit_without_countermeasure_support_causes_player_death(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        payload = _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "journalist",
+                "context_mode": "private",
+                "evidence_clue_keys": ["torn-note"],
+                "force_strategy": "standard",
+            },
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["state_delta_summary"]["ending"]["ending_type"] == "failure_killed_by_culprit"
+    assert payload["state_delta_summary"]["accusation"]["resolution"] == "culprit_counterattack"
+
+
+def test_private_accuse_true_culprit_with_violent_option_can_become_pseudo_victory(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        with app.state.container.uow_factory() as uow:
+            player = uow.players.get_by_session(session_id)
+            assert player is not None
+            assert player.state is not None
+            player.state.status_flags = {
+                **player.state.status_flags,
+                "can_counterattack_culprit": True,
+            }
+            uow.commit()
+
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        payload = _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "journalist",
+                "context_mode": "private",
+                "evidence_clue_keys": ["torn-note"],
+                "force_strategy": "violent",
+            },
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["state_delta_summary"]["ending"]["ending_type"] == "pseudo_victory_kill_culprit"
+    assert payload["state_delta_summary"]["accusation"]["resolution"] == "violent_resolution"
+
+
+def test_public_fabricated_accusation_can_reach_false_verdict_pseudo_victory(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        with app.state.container.uow_factory() as uow:
+            player = uow.players.get_by_session(session_id)
+            assert player is not None
+            assert player.state is not None
+            player.state.status_flags = {
+                **player.state.status_flags,
+                "can_fabricate_evidence": True,
+            }
+            uow.commit()
+
+        payload = _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "caretaker",
+                "context_mode": "public",
+                "evidence_clue_keys": [],
+                "force_strategy": "fabricate",
+            },
+        )
+
+    assert payload["status"] == "accepted"
+    assert payload["state_delta_summary"]["ending"]["ending_type"] == "pseudo_victory_false_verdict"
+    assert payload["state_delta_summary"]["accusation"]["resolution"] == "fabricated_verdict"
+
+def test_submit_action_rejects_ended_session(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        _submit_action(client, session_id, "investigate", {})
+        _submit_action(client, session_id, "gather", {"location_key": "archive-room", "reason": "public accusation"})
+        _submit_action(
+            client,
+            session_id,
+            "accuse",
+            {
+                "target_npc_key": "journalist",
+                "context_mode": "public",
+                "evidence_clue_keys": ["torn-note"],
+                "force_strategy": "standard",
+            },
+        )
+        action_response = client.post(
+            "/api/v1/actions",
+            json={
+                "session_id": session_id,
+                "action_type": "move",
+                "actor_id": "player",
+                "payload": {"target_location_key": "entrance-hall"},
+            },
+        )
+
+    assert action_response.status_code == 409
+    assert action_response.json()["detail"] == "Session has already ended."

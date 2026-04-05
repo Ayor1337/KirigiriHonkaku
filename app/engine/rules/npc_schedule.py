@@ -12,7 +12,7 @@ class NpcScheduleRule:
     def apply(self, action: ActionRequest, context: ActionExecutionContext) -> dict:
         """对所有会推进时间的动作执行一次最小日程刷新。"""
 
-        if not context.accepted or action.action_type not in {"move", "talk", "investigate"}:
+        if not context.accepted or action.action_type not in {"move", "talk", "investigate", "gather", "accuse"}:
             return {"npc_schedule_checked": False, "moved_npcs": []}
 
         moved_npcs = []

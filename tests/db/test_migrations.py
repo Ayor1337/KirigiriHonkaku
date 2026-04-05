@@ -38,6 +38,7 @@ EXPECTED_TABLES = {
 EXPECTED_COLUMNS = {
     "location": {"key"},
     "clue": {"key"},
+    "session": {"truth_payload"},
 }
 
 

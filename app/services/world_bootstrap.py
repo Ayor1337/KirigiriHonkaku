@@ -1,5 +1,6 @@
 """世界状态 bootstrap 服务。"""
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -127,7 +128,7 @@ class WorldBootstrapService:
                 poison_state="none",
                 exposure_value=session.exposure_value,
                 exposure_level=session.exposure_level,
-                status_flags={},
+                status_flags=dict(player_seed.get("status_flags", {})),
                 temporary_effects={},
                 unlocked_access=list(player_seed.get("unlocked_access", [])),
             )
@@ -267,6 +268,9 @@ class WorldBootstrapService:
                 db_session.add(event)
                 event_models.append(event)
 
+            session.truth_payload = dict(seed.get("truth", {}))
+            if session.truth_file_path:
+                self._file_storage.write_text(session.truth_file_path, self._render_truth_markdown(session.truth_payload))
             session.status = "ready"
             db_session.flush()
             uow.commit()
@@ -294,5 +298,13 @@ class WorldBootstrapService:
     def _slugify(value: str) -> str:
         return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
-
-
+    @staticmethod
+    def _render_truth_markdown(truth_payload: dict) -> str:
+        return (
+            "# Truth\n\n"
+            f"- culprit_npc_key: {truth_payload.get('culprit_npc_key')}\n"
+            f"- required_clue_keys: {json.dumps(truth_payload.get('required_clue_keys', []), ensure_ascii=False)}\n"
+            f"- supporting_clue_keys: {json.dumps(truth_payload.get('supporting_clue_keys', []), ensure_ascii=False)}\n"
+            f"- false_verdict_targets: {json.dumps(truth_payload.get('false_verdict_targets', []), ensure_ascii=False)}\n"
+            f"- countermeasure_plan: {json.dumps(truth_payload.get('countermeasure_plan', {}), ensure_ascii=False)}\n"
+        )

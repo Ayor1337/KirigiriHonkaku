@@ -13,7 +13,7 @@ class TimeRule:
         """只在动作被接受时推进主循环时间。"""
 
         advanced = False
-        if context.accepted and action.action_type in {"move", "investigate", "talk"}:
+        if context.accepted and action.action_type in {"move", "investigate", "talk", "gather", "accuse"}:
             context.session.current_time_minute += 5
             advanced = True
         return {

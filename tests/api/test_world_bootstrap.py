@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -50,3 +52,26 @@ def test_bootstrap_world_rejects_duplicate_initialization(app):
     assert first_response.status_code == 200
     assert second_response.status_code == 409
     assert second_response.json()["detail"] == "Session world state has already been bootstrapped."
+
+
+def test_bootstrap_world_writes_truth_file_and_payload(app):
+    with TestClient(app) as client:
+        created = _create_session(client, title="Truth Bootstrap Case")
+        response = client.post(f"/api/v1/sessions/{created['id']}/bootstrap")
+
+    assert response.status_code == 200
+
+    with app.state.container.uow_factory() as uow:
+        session = uow.sessions.get(created["id"])
+
+    assert session is not None
+    assert session.truth_file_path
+    assert session.truth_payload is not None
+    assert session.truth_payload["culprit_npc_key"] == "journalist"
+    assert session.truth_payload["required_clue_keys"] == ["torn-note"]
+
+    truth_path = Path(session.truth_file_path)
+    assert truth_path.exists()
+    truth_text = truth_path.read_text(encoding="utf-8")
+    assert "journalist" in truth_text
+    assert "torn-note" in truth_text

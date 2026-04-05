@@ -25,7 +25,7 @@ class ActionRequest(BaseModel):
     """统一动作输入。"""
 
     session_id: str
-    action_type: Literal["move", "talk", "investigate", "accuse"]
+    action_type: Literal["move", "talk", "investigate", "gather", "accuse"]
     actor_id: str
     payload: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None

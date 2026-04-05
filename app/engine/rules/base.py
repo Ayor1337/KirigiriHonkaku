@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from app.models.character import NpcModel, PlayerModel
 from app.models.clue import ClueModel
 from app.models.dialogue import DialogueModel
+from app.models.event import EventModel
 from app.models.map import LocationModel, MapModel
 from app.models.session import SessionModel
 from app.schemas.action import ActionRequest
@@ -20,6 +21,7 @@ class ActionExecutionContext:
     npcs: list[NpcModel]
     game_map: MapModel
     clues: list[ClueModel]
+    events: list[EventModel]
     dialogues: list[DialogueModel]
     accepted: bool = True
     errors: list[str] = field(default_factory=list)
@@ -27,6 +29,7 @@ class ActionExecutionContext:
     resolved_target_location: LocationModel | None = None
     resolved_target_npc: NpcModel | None = None
     created_dialogue: DialogueModel | None = None
+    created_event: EventModel | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
     def reject(self, error: str) -> None:

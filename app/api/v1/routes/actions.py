@@ -17,8 +17,10 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
         session = uow.sessions.get(payload.session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found.")
-        if session.status != "ready":
+        if session.status == "draft":
             raise HTTPException(status_code=409, detail="Session world state has not been bootstrapped.")
+        if session.status == "ended":
+            raise HTTPException(status_code=409, detail="Session has already ended.")
 
         engine_result = container.game_engine.process(payload, session, uow)
         narrative_result = container.narrative_service.run(payload, session, engine_result, uow)

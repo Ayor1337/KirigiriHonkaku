@@ -52,6 +52,10 @@ DEFAULT_WORLD_SEED = {
         "background_text": "受邀前来调查庄园中的异常事件。",
         "start_location_key": "entrance-hall",
         "unlocked_access": ["entrance-hall"],
+        "status_flags": {
+            "can_counterattack_culprit": False,
+            "can_fabricate_evidence": False,
+        },
     },
     "npcs": [
         {
@@ -130,12 +134,31 @@ DEFAULT_WORLD_SEED = {
             "start_minute": 0,
             "end_minute": 20,
             "is_public_event": True,
+            "rule_flags": {
+                "public_context_key": "evening-briefing",
+                "source": "scheduled_event",
+            },
             "participants": [
                 {"character_key": "player", "participant_role": "observer", "attendance_state": "present"},
                 {"character_key": "caretaker", "participant_role": "host", "attendance_state": "present"},
             ],
         }
     ],
+    "truth": {
+        "culprit_npc_key": "journalist",
+        "required_clue_keys": ["torn-note"],
+        "supporting_clue_keys": ["gate-key"],
+        "public_accusation_event_keys": ["evening-briefing"],
+        "countermeasure_plan": {
+            "indirect": ["raise_alertness", "apply_pressure"],
+            "direct": ["counterattack_in_private"],
+        },
+        "false_verdict_targets": ["caretaker"],
+        "private_encounter_rules": {
+            "violent_flag": "can_counterattack_culprit",
+            "fabricate_flag": "can_fabricate_evidence",
+        },
+    },
 }
 
 
