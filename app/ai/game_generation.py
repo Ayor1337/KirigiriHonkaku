@@ -198,7 +198,7 @@ class OpenAiGameGenerationRuntime(GameGenerationRuntime):
     def _normalize_plan_payload(payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
         bounds = {
-            "target_location_count": (3, 8),
+            "target_location_count": (8, 12),
             "target_npc_count": (2, 6),
             "target_clue_count": (2, 8),
             "target_event_count": (1, 4),
@@ -462,7 +462,7 @@ class OpenAiGameGenerationRuntime(GameGenerationRuntime):
             "- premise 概括案件核心冲突与真相方向。\n"
             "- setting 描述时代/场景。\n"
             "- tone 描述整体气质。\n"
-            "- target_location_count 必须在 3 到 8 之间。\n"
+            "- target_location_count 必须在 8 到 12 之间。\n"
             "- target_npc_count 必须在 2 到 6 之间。\n"
             "- target_clue_count 必须在 2 到 8 之间。\n"
             "- target_event_count 必须在 1 到 4 之间。\n"

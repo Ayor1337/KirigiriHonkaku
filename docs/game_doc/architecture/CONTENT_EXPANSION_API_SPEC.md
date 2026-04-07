@@ -13,6 +13,10 @@
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions/{session_id}/bootstrap`
 - `GET /api/v1/sessions/{session_id}`
+- `GET /api/v1/sessions/{session_id}/state`
+- `GET /api/v1/sessions/{session_id}/player`
+- `GET /api/v1/sessions/{session_id}/map`
+- `GET /api/v1/sessions/{session_id}/npcs`
 - `POST /api/v1/actions`
 
 当前版本不新增：
@@ -276,12 +280,12 @@ GET /api/v1/sessions
 
 说明：
 
-- 返回会话基础状态、目录信息、根 ID 信息，以及数据库中已存在的玩家与地图数据
+- 只返回会话基础状态、目录信息与根 ID 信息
 - `title` 在 `draft / generating` 阶段允许为 `null`
 - `root_ids` 在会话未完成 bootstrap 时允许为空对象 `{}`
-- `player` 与 `map` 在会话未完成 bootstrap 时允许为 `null`
-- bootstrap 成功后会返回 AGENT 生成的正式标题、根 ID、玩家资料与完整地图
-- 顶层 `exposure_value / exposure_level` 返回会话当前暴露度原始值
+- 不再返回 `player`
+- 不再返回 `map`
+- 不再返回顶层 `exposure_value / exposure_level`
 - 可用于确认 bootstrap 失败后状态是否已回退为 `draft`
 
 成功响应示例（`draft`）：
@@ -294,8 +298,6 @@ GET /api/v1/sessions
   "status": "draft",
   "start_time_minute": 0,
   "current_time_minute": 0,
-  "exposure_value": 0,
-  "exposure_level": "low",
   "data_directories": {
     "session_root": "...",
     "story": "...",
@@ -305,9 +307,7 @@ GET /api/v1/sessions
     "dialogue": "...",
     "clue": "..."
   },
-  "root_ids": {},
-  "player": null,
-  "map": null
+  "root_ids": {}
 }
 ```
 
@@ -321,8 +321,6 @@ GET /api/v1/sessions
   "status": "ready",
   "start_time_minute": 0,
   "current_time_minute": 15,
-  "exposure_value": 0,
-  "exposure_level": "low",
   "data_directories": {
     "session_root": "...",
     "story": "...",
@@ -335,55 +333,144 @@ GET /api/v1/sessions
   "root_ids": {
     "player_id": "...",
     "map_id": "..."
-  },
-  "player": {
-    "id": "...",
-    "character_id": "...",
-    "display_name": "Detective Kirigiri",
-    "public_identity": "Independent Detective",
-    "template_key": "case-manor",
-    "template_name": "Detective",
-    "trait_text": "冷静、谨慎、擅长交叉验证证词。",
-    "background_text": "受邀前来调查庄园中的异常事件。",
-    "current_location_id": "...",
-    "current_location_name": "Entrance Hall",
-    "exposure_value": 0,
-    "exposure_level": "low"
-  },
-  "map": {
-    "id": "...",
-    "template_key": "map-manor",
-    "display_name": "Moonview Manor",
-    "locations": [
-      {
-        "id": "...",
-        "key": "archive-room",
-        "parent_location_id": "...",
-        "name": "Archive Room",
-        "description": "存放旧档案和纸质材料的房间。",
-        "location_type": "interior",
-        "visibility_level": "restricted",
-        "is_hidden": false,
-        "status_flags": {}
-      }
-    ],
-    "connections": [
-      {
-        "id": "...",
-        "from_location_id": "...",
-        "to_location_id": "...",
-        "connection_type": "door",
-        "access_rule": {},
-        "is_hidden": false,
-        "is_locked": false,
-        "is_one_way": false,
-        "is_dangerous": false,
-        "time_window_rule": {}
-      }
-    ]
   }
 }
 ```
+
+### 6.2 `GET /api/v1/sessions/{session_id}/state`
+
+说明：
+
+- 返回会话级状态详情
+- 当前只包含暴露度字段
+- 只要会话存在，无论 `draft / generating / ready / ended` 都可读取
+
+成功响应示例：
+
+```json
+{
+  "exposure_value": 0,
+  "exposure_level": "low"
+}
+```
+
+### 6.3 `GET /api/v1/sessions/{session_id}/player`
+
+说明：
+
+- 返回当前会话玩家详情
+- 仅在会话完成 bootstrap 后可读
+- 若会话存在但玩家尚未生成，返回 `404`
+
+成功响应示例：
+
+```json
+{
+  "id": "...",
+  "character_id": "...",
+  "display_name": "Detective Kirigiri",
+  "public_identity": "Independent Detective",
+  "template_key": "case-manor",
+  "template_name": "Detective",
+  "trait_text": "冷静、谨慎、擅长交叉验证证词。",
+  "background_text": "受邀前来调查庄园中的异常事件。",
+  "current_location_id": "...",
+  "current_location_name": "Entrance Hall",
+  "exposure_value": 0,
+  "exposure_level": "low"
+}
+```
+
+失败语义：
+
+- `404`：会话不存在
+- `404`：会话存在但玩家尚未生成，detail 为 `Player not found for session.`
+
+### 6.4 `GET /api/v1/sessions/{session_id}/map`
+
+说明：
+
+- 返回当前会话地图详情
+- 仅在会话完成 bootstrap 后可读
+- 若会话存在但地图尚未生成，返回 `404`
+
+成功响应示例：
+
+```json
+{
+  "id": "...",
+  "template_key": "map-manor",
+  "display_name": "Moonview Manor",
+  "locations": [
+    {
+      "id": "...",
+      "key": "archive-room",
+      "parent_location_id": "...",
+      "name": "Archive Room",
+      "description": "存放旧档案和纸质材料的房间。",
+      "location_type": "interior",
+      "visibility_level": "restricted",
+      "is_hidden": false,
+      "status_flags": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "...",
+      "from_location_id": "...",
+      "to_location_id": "...",
+      "connection_type": "door",
+      "access_rule": {},
+      "is_hidden": false,
+      "is_locked": false,
+      "is_one_way": false,
+      "is_dangerous": false,
+      "time_window_rule": {}
+    }
+  ]
+}
+```
+
+失败语义：
+
+- `404`：会话不存在
+- `404`：会话存在但地图尚未生成，detail 为 `Map not found for session.`
+
+### 6.5 `GET /api/v1/sessions/{session_id}/npcs`
+
+说明：
+
+- 返回当前会话中所有 `has_met_player = true` 的 NPC
+- 按 NPC 创建顺序返回
+- 会话存在但尚未见过任何 NPC 时返回空数组 `[]`
+- draft 会话也可调用，结果通常为空数组
+
+成功响应示例：
+
+```json
+[
+  {
+    "id": "...",
+    "character_id": "...",
+    "template_key": "journalist",
+    "display_name": "Journalist Ren",
+    "public_identity": "Freelance Reporter",
+    "current_location_id": "...",
+    "current_location_name": "Archive Room",
+    "has_met_player": true
+  }
+]
+```
+
+空列表示例：
+
+```json
+[]
+```
+
+失败语义：
+
+- `404`：会话不存在
 
 当前会话状态包括：
 
@@ -442,6 +529,7 @@ GET /api/v1/sessions
 - 新增 `POST /sessions/bootstrap-stream`，用于首页实时创建与阶段显示
 - `GET /sessions` 继续返回全部会话列表
 - `GET /sessions/{id}` 继续返回 `root_ids`，用于前端继续游戏
+- 玩家详情、地图详情、暴露度与已见过 NPC 列表已拆到独立读取接口
 - `bootstrap` 兼容接口继续保留，但不再是首页新建流程的首选入口
 - 前端阶段名称不由后端返回，而是由前端基于占位符自行翻译
 

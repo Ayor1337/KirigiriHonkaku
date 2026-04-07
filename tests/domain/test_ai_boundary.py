@@ -193,7 +193,7 @@ def test_game_generation_runtime_clamps_plan_counts_to_schema_bounds():
         }
     )
 
-    assert normalized["target_location_count"] == 8
+    assert normalized["target_location_count"] == 12
     assert normalized["target_npc_count"] == 2
     assert normalized["target_clue_count"] == 8
     assert normalized["target_event_count"] == 4

@@ -303,6 +303,9 @@ class GameEngine:
         if current_location is None or target_npc is None:
             raise RuntimeError("Dialogue target was not resolved.")
 
+        if target_npc.state is not None:
+            target_npc.state.has_met_player = True
+
         dialogue = DialogueModel(
             session=context.session,
             dialogue_type="conversation",

@@ -14,6 +14,9 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
         created = _create_session(client)
         response = client.post(f"/api/v1/sessions/{created['id']}/bootstrap")
         fetched = client.get(f"/api/v1/sessions/{created['id']}")
+        fetched_state = client.get(f"/api/v1/sessions/{created['id']}/state")
+        fetched_player = client.get(f"/api/v1/sessions/{created['id']}/player")
+        fetched_map = client.get(f"/api/v1/sessions/{created['id']}/map")
 
     assert response.status_code == 200
     payload = response.json()
@@ -36,25 +39,46 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
     assert fetched_payload["status"] == "ready"
     assert fetched_payload["title"].startswith("Generated Case ")
     assert fetched_payload["root_ids"] == payload["root_ids"]
-    assert fetched_payload["player"] == {
+    assert "player" not in fetched_payload
+    assert "map" not in fetched_payload
+    assert "exposure_value" not in fetched_payload
+    assert "exposure_level" not in fetched_payload
+
+    assert fetched_state.status_code == 200
+    assert fetched_state.json() == {
+        "exposure_value": 0,
+        "exposure_level": "low",
+    }
+
+    assert fetched_player.status_code == 200
+    fetched_player_payload = fetched_player.json()
+    with app.state.container.uow_factory() as uow:
+        npcs = {npc.template_key: npc for npc in uow.npcs.list_by_session(created["id"])}
+
+    assert npcs["journalist"].state is not None
+    assert npcs["journalist"].state.has_met_player is False
+
+    assert fetched_player_payload == {
         "id": payload["root_ids"]["player_id"],
-        "character_id": fetched_payload["player"]["character_id"],
+        "character_id": fetched_player_payload["character_id"],
         "display_name": "Detective Kirigiri",
         "public_identity": "Independent Detective",
         "template_key": "case-manor",
         "template_name": "Detective",
         "trait_text": "冷静、谨慎、擅长交叉验证证词。",
         "background_text": "受邀前来调查庄园中的异常事件。",
-        "current_location_id": fetched_payload["player"]["current_location_id"],
+        "current_location_id": fetched_player_payload["current_location_id"],
         "current_location_name": "Entrance Hall",
         "exposure_value": 0,
         "exposure_level": "low",
     }
 
-    locations_by_key = {item["key"]: item for item in fetched_payload["map"]["locations"]}
-    connections = fetched_payload["map"]["connections"]
+    assert fetched_map.status_code == 200
+    fetched_map_payload = fetched_map.json()
+    locations_by_key = {item["key"]: item for item in fetched_map_payload["locations"]}
+    connections = fetched_map_payload["connections"]
 
-    assert fetched_payload["map"] == {
+    assert fetched_map_payload == {
         "id": payload["root_ids"]["map_id"],
         "template_key": "map-manor",
         "display_name": "Moonview Manor",
@@ -120,8 +144,6 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
             },
         ],
     }
-    assert fetched_payload["exposure_value"] == 0
-    assert fetched_payload["exposure_level"] == "low"
 
 
 def test_bootstrap_world_rejects_duplicate_initialization(app):

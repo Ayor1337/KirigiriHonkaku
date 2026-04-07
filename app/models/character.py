@@ -284,6 +284,7 @@ class NpcStateModel(IdMixin, UpdatedAtMixin, Base):
     attitude_to_player: Mapped[str | None] = mapped_column(String(32))
     alertness_level: Mapped[str | None] = mapped_column(String(32))
     emotion_tag: Mapped[str | None] = mapped_column(String(32))
+    has_met_player: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_in_event: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_under_pressure: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -14,7 +14,7 @@ class GameGenerationPlan(BaseModel):
     premise: str
     setting: str
     tone: str
-    target_location_count: int = Field(ge=3, le=8)
+    target_location_count: int = Field(ge=8, le=12)
     target_npc_count: int = Field(ge=2, le=6)
     target_clue_count: int = Field(ge=2, le=8)
     target_event_count: int = Field(ge=1, le=4)

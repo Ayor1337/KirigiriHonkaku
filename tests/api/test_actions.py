@@ -193,6 +193,7 @@ def test_talk_action_creates_dialogue_when_npc_is_in_same_location(app):
         session_id = _bootstrap_session(client)
         _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
         payload = _submit_action(client, session_id, "talk", {"target_npc_key": "journalist"})
+        fetched_npcs = client.get(f"/api/v1/sessions/{session_id}/npcs")
 
     assert payload["status"] == "accepted"
     assert payload["action_type"] == "talk"
@@ -221,8 +222,22 @@ def test_talk_action_creates_dialogue_when_npc_is_in_same_location(app):
     assert dialogues[0].transcript_file_path
     assert len(dialogues[0].utterances) >= 1
     assert npcs["journalist"].memory_file_path
+    assert fetched_npcs.status_code == 200
+    assert fetched_npcs.json() == [
+        {
+            "id": str(npcs["journalist"].id),
+            "character_id": str(npcs["journalist"].character_id),
+            "template_key": "journalist",
+            "display_name": "Journalist Ren",
+            "public_identity": npcs["journalist"].character.public_identity,
+            "current_location_id": str(npcs["journalist"].state.current_location_id),
+            "current_location_name": "Archive Room",
+            "has_met_player": True,
+        }
+    ]
     assert npcs["journalist"].state.attitude_to_player == "guarded"
     assert npcs["journalist"].state.emotion_tag == "wary"
+    assert npcs["journalist"].state.has_met_player is True
 
     transcript_path = Path(dialogues[0].transcript_file_path)
     summary_path = Path(dialogues[0].summary_file_path)

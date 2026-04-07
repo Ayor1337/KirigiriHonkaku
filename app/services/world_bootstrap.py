@@ -277,6 +277,7 @@ class WorldBootstrapService:
                 attitude_to_player=npc_seed.attitude_to_player,
                 alertness_level=npc_seed.alertness_level,
                 emotion_tag=npc_seed.emotion_tag,
+                has_met_player=False,
                 is_available=True,
                 is_in_event=False,
                 is_under_pressure=False,

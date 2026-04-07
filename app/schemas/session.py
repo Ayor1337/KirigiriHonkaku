@@ -19,6 +19,12 @@ class SessionSummaryResponse(BaseModel):
     current_time_minute: int
 
 
+class SessionStateResponse(BaseModel):
+    """会话状态详情返回结构。"""
+
+    exposure_value: int = 0
+    exposure_level: str | None = None
+
 
 class SessionPlayerResponse(BaseModel):
     """会话详情里的玩家资料。"""
@@ -36,6 +42,18 @@ class SessionPlayerResponse(BaseModel):
     exposure_value: int = 0
     exposure_level: str | None = None
 
+
+class SessionNpcResponse(BaseModel):
+    """会话里的 NPC 简要资料。"""
+
+    id: UUID
+    character_id: UUID
+    template_key: str | None = None
+    display_name: str
+    public_identity: str | None = None
+    current_location_id: UUID | None = None
+    current_location_name: str | None = None
+    has_met_player: bool = False
 
 
 class SessionMapLocationResponse(BaseModel):
@@ -66,6 +84,7 @@ class SessionMapConnectionResponse(BaseModel):
     is_dangerous: bool = False
     time_window_rule: dict[str, Any] = Field(default_factory=dict)
 
+
 class SessionMapResponse(BaseModel):
     """会话详情里的地图资料。"""
 
@@ -75,15 +94,12 @@ class SessionMapResponse(BaseModel):
     locations: list[SessionMapLocationResponse] = Field(default_factory=list)
     connections: list[SessionMapConnectionResponse] = Field(default_factory=list)
 
-class SessionResponse(SessionSummaryResponse):
-    """会话详情接口返回结构。"""
 
-    exposure_value: int = 0
-    exposure_level: str | None = None
+class SessionResponse(SessionSummaryResponse):
+    """会话基础详情接口返回结构。"""
+
     data_directories: dict[str, Any] = Field(default_factory=dict)
     root_ids: dict[str, str] = Field(default_factory=dict)
-    player: SessionPlayerResponse | None = None
-    map: SessionMapResponse | None = None
 
 
 class SessionBootstrapResponse(BaseModel):
