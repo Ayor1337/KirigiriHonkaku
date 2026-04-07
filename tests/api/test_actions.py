@@ -1,24 +1,17 @@
 from pathlib import Path
+import json
 
 from fastapi.testclient import TestClient
 
 
-def _create_session(client: TestClient, title: str = "Action Case") -> dict:
-    response = client.post(
-        "/api/v1/sessions",
-        json={
-            "title": title,
-            "case_template_key": "case-action",
-            "map_template_key": "map-action",
-            "truth_template_key": "truth-action",
-        },
-    )
+def _create_session(client: TestClient) -> dict:
+    response = client.post("/api/v1/sessions")
     assert response.status_code == 201
     return response.json()
 
 
-def _bootstrap_session(client: TestClient, title: str = "Action Case") -> str:
-    session_id = _create_session(client, title=title)["id"]
+def _bootstrap_session(client: TestClient) -> str:
+    session_id = _create_session(client)["id"]
     bootstrap_response = client.post(f"/api/v1/sessions/{session_id}/bootstrap")
     assert bootstrap_response.status_code == 200
     return session_id
@@ -46,7 +39,7 @@ def _submit_action(
 
 def test_submit_action_rejects_draft_session_before_world_bootstrap(app):
     with TestClient(app) as client:
-        created = _create_session(client, title="Draft Action Case")
+        created = _create_session(client)
         action_response = client.post(
             "/api/v1/actions",
             json={
@@ -59,6 +52,28 @@ def test_submit_action_rejects_draft_session_before_world_bootstrap(app):
 
     assert action_response.status_code == 409
     assert action_response.json()["detail"] == "Session world state has not been bootstrapped."
+
+
+def test_submit_action_rejects_generating_session(app):
+    with TestClient(app) as client:
+        created = _create_session(client)
+        with app.state.container.uow_factory() as uow:
+            session = uow.sessions.get(created["id"])
+            assert session is not None
+            session.status = "generating"
+            uow.commit()
+        action_response = client.post(
+            "/api/v1/actions",
+            json={
+                "session_id": created["id"],
+                "action_type": "move",
+                "actor_id": "player",
+                "payload": {"target_location_key": "archive-room"},
+            },
+        )
+
+    assert action_response.status_code == 409
+    assert action_response.json()["detail"] == "Session world state is currently being generated."
 
 
 def test_move_action_updates_world_state_and_scene_snapshot(app):
@@ -83,6 +98,7 @@ def test_move_action_updates_world_state_and_scene_snapshot(app):
     }
     assert [item["key"] for item in payload["scene_snapshot"]["details"]["visible_npcs"]] == ["journalist"]
     assert payload["soft_state_patch"]["allowed"] is True
+    assert "archive-room" not in payload["narrative_text"]
 
     with app.state.container.uow_factory() as uow:
         player = uow.players.get_by_session(session_id)
@@ -96,6 +112,28 @@ def test_move_action_updates_world_state_and_scene_snapshot(app):
     assert session.current_time_minute == 5
     assert npcs["caretaker"].state.current_location is not None
     assert npcs["caretaker"].state.current_location.name == "Garden Gate"
+
+
+def test_action_appends_ai_generation_log_records(app):
+    with TestClient(app) as client:
+        session_id = _bootstrap_session(client)
+        first_payload = _submit_action(client, session_id, "move", {"target_location_key": "archive-room"})
+        second_payload = _submit_action(client, session_id, "investigate", {})
+
+    log_path = Path(first_payload["storage_refs"]["ai_generation_log"])
+    assert log_path.exists()
+    assert second_payload["storage_refs"]["ai_generation_log"] == str(log_path)
+
+    lines = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert lines[0]["action_type"] == "move"
+    assert lines[0]["runtime_metadata"]["runtime"] == "fallback"
+    assert lines[0]["raw_output_text"] == first_payload["narrative_text"]
+    assert lines[0]["result"]["narrative_text"] == first_payload["narrative_text"]
+    assert lines[1]["action_type"] == "investigate"
+    assert lines[1]["raw_output_text"]
+    assert second_payload["narrative_text"] in lines[1]["raw_output_text"]
+    assert lines[1]["result"]["narrative_text"] == second_payload["narrative_text"]
 
 
 def test_move_action_rejects_unreachable_target_without_advancing_time(app):
@@ -163,10 +201,12 @@ def test_talk_action_creates_dialogue_when_npc_is_in_same_location(app):
     assert payload["scene_snapshot"]["details"]["latest_dialogue"]["target_npc_key"] == "journalist"
     assert payload["scene_snapshot"]["details"]["latest_dialogue"]["location_key"] == "archive-room"
     assert payload["narrative_text"]
+    assert "archive-room" not in payload["narrative_text"]
     assert payload["storage_refs"]["dialogue_summary"]
     assert payload["storage_refs"]["dialogue_transcript"]
     assert payload["storage_refs"]["history_markdown"]
     assert payload["storage_refs"]["npc_memory:journalist"]
+    assert payload["storage_refs"]["ai_generation_log"]
 
     with app.state.container.uow_factory() as uow:
         dialogues = uow.dialogues.list_by_session(session_id)
@@ -194,7 +234,7 @@ def test_talk_action_creates_dialogue_when_npc_is_in_same_location(app):
     assert memory_path.exists()
     assert history_path.exists()
     assert "Journalist" in transcript_path.read_text(encoding="utf-8")
-    assert "archive-room" in summary_path.read_text(encoding="utf-8")
+    assert "archive-room" not in summary_path.read_text(encoding="utf-8")
     assert "本次对话更新" in memory_path.read_text(encoding="utf-8")
     assert payload["narrative_text"] in history_path.read_text(encoding="utf-8")
 
@@ -382,6 +422,7 @@ def test_public_fabricated_accusation_can_reach_false_verdict_pseudo_victory(app
     assert payload["status"] == "accepted"
     assert payload["state_delta_summary"]["ending"]["ending_type"] == "pseudo_victory_false_verdict"
     assert payload["state_delta_summary"]["accusation"]["resolution"] == "fabricated_verdict"
+
 
 def test_submit_action_rejects_ended_session(app):
     with TestClient(app) as client:

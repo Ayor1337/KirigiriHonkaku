@@ -3,15 +3,7 @@ from fastapi.testclient import TestClient
 
 def _bootstrap_session(app) -> str:
     with TestClient(app) as client:
-        created = client.post(
-            "/api/v1/sessions",
-            json={
-                "title": "Repository World Case",
-                "case_template_key": "case-repository",
-                "map_template_key": "map-repository",
-                "truth_template_key": "truth-repository",
-            },
-        )
+        created = client.post("/api/v1/sessions")
         assert created.status_code == 201
         session_id = created.json()["id"]
         bootstrapped = client.post(f"/api/v1/sessions/{session_id}/bootstrap")

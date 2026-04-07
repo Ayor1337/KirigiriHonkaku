@@ -19,6 +19,8 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
             raise HTTPException(status_code=404, detail="Session not found.")
         if session.status == "draft":
             raise HTTPException(status_code=409, detail="Session world state has not been bootstrapped.")
+        if session.status == "generating":
+            raise HTTPException(status_code=409, detail="Session world state is currently being generated.")
         if session.status == "ended":
             raise HTTPException(status_code=409, detail="Session has already ended.")
 

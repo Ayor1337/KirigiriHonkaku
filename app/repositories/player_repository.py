@@ -31,3 +31,9 @@ class PlayerRepository:
         )
         return self.db_session.scalar(statement)
 
+    def get_id_by_session(self, session_id: str) -> str | None:
+        """按会话读取玩家根 ID。"""
+
+        statement = select(PlayerModel.id).where(PlayerModel.session_id == UUID(session_id))
+        player_id = self.db_session.scalar(statement)
+        return str(player_id) if player_id is not None else None

@@ -1,11 +1,12 @@
 """FastAPI 应用装配入口。"""
 
-from contextlib import asynccontextmanager
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from fastapi import FastAPI
 
+from app.ai.game_generation import GameGenerationRuntime, create_game_generation_runtime
 from app.ai.runtime import NarrativeRuntime, create_narrative_runtime
 from app.api.v1.router import api_router
 from app.core.config import Settings
@@ -14,7 +15,6 @@ from app.db.session import create_db_engine, create_session_factory
 from app.engine.service import GameEngine
 from app.models import *  # noqa: F403
 from app.repositories.uow import SqlAlchemyUnitOfWork
-from app.seeds.world import DefaultWorldSeedProvider
 from app.services.narrative import NarrativeService
 from app.services.world_bootstrap import WorldBootstrapService
 from app.services.world_state import WorldStateService
@@ -29,6 +29,7 @@ class AppContainer:
     file_storage: FileStorage
     game_engine: GameEngine
     ai_runtime: NarrativeRuntime
+    game_generation_runtime: GameGenerationRuntime
     narrative_service: NarrativeService
     world_bootstrap_service: WorldBootstrapService
     world_state_service: WorldStateService
@@ -43,12 +44,17 @@ def build_container(settings: Settings) -> AppContainer:
     session_factory = create_session_factory(db_engine)
     file_storage = FileStorage(settings.resolved_data_root)
     uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
-    seed_provider = DefaultWorldSeedProvider()
     ai_runtime = create_narrative_runtime(
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
         model=settings.openai_model,
         timeout_seconds=settings.openai_timeout_seconds,
+    )
+    game_generation_runtime = create_game_generation_runtime(
+        base_url=settings.openai_base_url,
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        timeout_seconds=settings.openai_game_generation_timeout_seconds,
     )
     narrative_service = NarrativeService(file_storage, ai_runtime)
     return AppContainer(
@@ -56,8 +62,9 @@ def build_container(settings: Settings) -> AppContainer:
         file_storage=file_storage,
         game_engine=GameEngine(),
         ai_runtime=ai_runtime,
+        game_generation_runtime=game_generation_runtime,
         narrative_service=narrative_service,
-        world_bootstrap_service=WorldBootstrapService(uow_factory, file_storage, seed_provider),
+        world_bootstrap_service=WorldBootstrapService(uow_factory, file_storage, game_generation_runtime),
         world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,
         db_engine=db_engine,

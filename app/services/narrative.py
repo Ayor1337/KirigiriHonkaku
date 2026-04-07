@@ -43,6 +43,8 @@ class NarrativeService:
         self._apply_soft_state_patch(context, runtime_result.soft_state_patch)
 
         storage_refs: dict[str, str] = {}
+        ai_generation_log_path = self._append_ai_generation_log(session.uuid, action, engine_result, runtime_result)
+        storage_refs["ai_generation_log"] = ai_generation_log_path
         dialogue = self._resolve_dialogue(engine_result, uow)
         if action.action_type == "talk" and engine_result.status == "accepted" and dialogue is not None:
             utterances = runtime_result.utterances or self._build_default_utterances(context, runtime_result)
@@ -110,6 +112,7 @@ class NarrativeService:
             "target_npc": target_npc,
             "target_npc_name": target_npc.character.display_name if target_npc else None,
             "location_key": dialogue_summary.get("location_key") or current_location.get("key") or action.payload.get("target_location_key"),
+            "location_name": current_location.get("name"),
             "dialogue_id": dialogue_summary.get("dialogue_id"),
             "discovered_clue_keys": [item.get("key") for item in investigation.get("discovered_clues", [])],
         }
@@ -121,6 +124,49 @@ class NarrativeService:
             fallback_result = self._fallback_runtime.run(engine_result, context)
             fallback_result.metadata["fallback_reason"] = exc.__class__.__name__
             return fallback_result
+
+    def _append_ai_generation_log(
+        self,
+        session_uuid: str,
+        action: ActionRequest,
+        engine_result,
+        runtime_result: NarrativeRuntimeResult,
+    ) -> str:
+        log_entry = {
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "action_type": action.action_type,
+            "session_id": action.session_id,
+            "status": engine_result.status,
+            "runtime_metadata": runtime_result.metadata,
+            "raw_output_text": runtime_result.raw_output_text or runtime_result.narrative_text,
+            "result": {
+                "narrative_text": runtime_result.narrative_text,
+                "dialogue_summary_text": runtime_result.dialogue_summary_text,
+                "utterances": [
+                    {
+                        "speaker_role": item.speaker_role,
+                        "speaker_name": item.speaker_name,
+                        "content": item.content,
+                        "tone_tag": item.tone_tag,
+                        "utterance_flags": item.utterance_flags,
+                    }
+                    for item in runtime_result.utterances
+                ],
+                "memory_updates": [
+                    {
+                        "npc_key": item.npc_key,
+                        "appended_text": item.appended_text,
+                    }
+                    for item in runtime_result.memory_updates
+                ],
+                "soft_state_patch": runtime_result.soft_state_patch.model_dump(),
+            },
+        }
+        log_path = str(Path(self._file_storage.root) / "sessions" / session_uuid / "history" / "ai_generation_log.jsonl")
+        return self._file_storage.append_text(
+            log_path,
+            json.dumps(log_entry, ensure_ascii=False) + "\n",
+        )
 
     @staticmethod
     def _resolve_dialogue(engine_result, uow):

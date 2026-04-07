@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Kirigiri Honkaku"
     api_v1_prefix: str = "/api/v1"
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/kirigiri_honkaku"
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:25432/kirigiri_honkaku"
     data_root: Path = Path("data")
     auto_create_schema: bool = False
     sql_echo: bool = False
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str | None = None
     openai_timeout_seconds: float = 30.0
+    openai_game_generation_timeout_seconds: float = 600.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

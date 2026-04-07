@@ -114,7 +114,7 @@ class GameEngine:
             "movement": module_outputs.get("map", {}).get("movement"),
             "investigation": module_outputs.get("clue", {}).get(
                 "investigation",
-                {"discovered_clues": []},
+                {"discovered_clues": [], "granted_access_tokens": []},
             ),
             "dialogue": dialogue_summary,
             "exposure": exposure,
@@ -171,7 +171,11 @@ class GameEngine:
         if target_location.id == current_location.id:
             context.reject("Target location is already current location.")
             return
-        if not self._is_reachable(current_location.id, target_location.id, context.game_map.connections):
+
+        unlocked_access = []
+        if context.player.state is not None:
+            unlocked_access = context.player.state.unlocked_access
+        if not self._is_reachable(current_location.id, target_location.id, context.game_map.connections, unlocked_access):
             context.reject("Target location is not reachable from current location.")
             return
 
@@ -242,9 +246,14 @@ class GameEngine:
         context.resolved_target_npc = target_npc
 
     @staticmethod
-    def _is_reachable(current_location_id: str, target_location_id: str, connections: list[ConnectionModel]) -> bool:
+    def _is_reachable(
+        current_location_id: str,
+        target_location_id: str,
+        connections: list[ConnectionModel],
+        unlocked_access: list[str],
+    ) -> bool:
         for connection in connections:
-            if connection.is_hidden or connection.is_locked:
+            if not GameEngine._connection_is_accessible(connection, unlocked_access):
                 continue
             if connection.from_location_id == current_location_id and connection.to_location_id == target_location_id:
                 return True
@@ -252,16 +261,41 @@ class GameEngine:
                 return True
         return False
 
-    def _reachable_locations(self, current_location: LocationModel, connections: list[ConnectionModel]) -> list[LocationModel]:
+    def _reachable_locations(
+        self,
+        current_location: LocationModel,
+        connections: list[ConnectionModel],
+        unlocked_access: list[str],
+    ) -> list[LocationModel]:
         reachable: dict[str, LocationModel] = {}
         for connection in connections:
-            if connection.is_hidden or connection.is_locked:
+            if not self._connection_is_accessible(connection, unlocked_access):
                 continue
             if connection.from_location_id == current_location.id:
                 reachable[connection.to_location_id] = connection.to_location
             elif not connection.is_one_way and connection.to_location_id == current_location.id:
                 reachable[connection.from_location_id] = connection.from_location
         return sorted(reachable.values(), key=lambda location: location.key)
+
+    @staticmethod
+    def _connection_is_accessible(connection: ConnectionModel, unlocked_access: list[str]) -> bool:
+        if connection.is_hidden or connection.is_locked:
+            return False
+        required_token = connection.access_rule.get("required_token")
+        if isinstance(required_token, str) and required_token:
+            return required_token in unlocked_access
+        return True
+
+    @staticmethod
+    def _clue_is_discoverable(clue, current_time_minute: int, unlocked_access: list[str]) -> bool:
+        discovery_rule = clue.discovery_rule or {}
+        required_tokens = discovery_rule.get("required_access_tokens", [])
+        if required_tokens and not set(required_tokens).issubset(set(unlocked_access)):
+            return False
+        min_time_minute = discovery_rule.get("min_time_minute")
+        if isinstance(min_time_minute, int) and current_time_minute < min_time_minute:
+            return False
+        return True
 
     def _create_dialogue(self, context: ActionExecutionContext, uow: SqlAlchemyUnitOfWork) -> dict[str, Any]:
         current_location = context.player.character.current_location
@@ -346,6 +380,9 @@ class GameEngine:
         risk: dict[str, Any],
     ) -> dict[str, Any]:
         current_location = context.player.character.current_location
+        unlocked_access = []
+        if context.player.state is not None:
+            unlocked_access = context.player.state.unlocked_access
         if current_location is None:
             return {
                 "current_location": None,
@@ -363,7 +400,7 @@ class GameEngine:
                 "key": location.key,
                 "name": location.name,
             }
-            for location in self._reachable_locations(current_location, context.game_map.connections)
+            for location in self._reachable_locations(current_location, context.game_map.connections, unlocked_access)
         ]
         visible_npcs = [
             {
@@ -380,7 +417,9 @@ class GameEngine:
                 "clue_type": clue.clue_type,
             }
             for clue in sorted(context.clues, key=lambda item: item.key)
-            if clue.current_location_id == current_location.id and clue.is_movable
+            if clue.current_location_id == current_location.id
+            and clue.is_movable
+            and self._clue_is_discoverable(clue, context.session.current_time_minute, unlocked_access)
         ]
         return {
             "current_location": {
@@ -441,6 +480,3 @@ class GameEngine:
             "location_key": current_location.key,
             "participant_keys": [],
         }
-
-
-

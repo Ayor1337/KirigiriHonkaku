@@ -14,7 +14,7 @@ class SessionModel(IdMixin, AuditMixin, Base):
     __tablename__ = "session"
 
     uuid: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
     start_time_minute: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_time_minute: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -37,7 +37,7 @@ EXPECTED_TABLES = {
 
 EXPECTED_COLUMNS = {
     "location": {"key"},
-    "clue": {"key"},
+    "clue": {"key", "discovery_rule"},
     "session": {"truth_payload"},
 }
 
@@ -63,3 +63,4 @@ def test_alembic_upgrade_applies_fixed_schema_snapshot():
             engine.dispose()
     finally:
         shutil.rmtree(runtime_root, ignore_errors=True)
+

@@ -24,3 +24,10 @@ class MapRepository:
             .where(MapModel.session_id == UUID(session_id))
         )
         return self.db_session.scalar(statement)
+
+    def get_id_by_session(self, session_id: str) -> str | None:
+        """按会话读取地图根 ID。"""
+
+        statement = select(MapModel.id).where(MapModel.session_id == UUID(session_id))
+        map_id = self.db_session.scalar(statement)
+        return str(map_id) if map_id is not None else None

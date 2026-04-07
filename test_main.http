@@ -10,12 +10,21 @@ Accept: application/json
 POST http://127.0.0.1:8000/api/v1/sessions
 Content-Type: application/json
 
-{
-  "title": "Case Zero",
-  "case_template_key": "case-zero",
-  "map_template_key": "map-zero",
-  "truth_template_key": "truth-zero"
-}
+{}
+
+###
+
+# Bootstrap stream session
+
+POST http://127.0.0.1:8000/api/v1/sessions/bootstrap-stream
+Accept: text/event-stream
+
+###
+
+# List sessions
+
+GET http://127.0.0.1:8000/api/v1/sessions
+Accept: application/json
 
 ###
 
