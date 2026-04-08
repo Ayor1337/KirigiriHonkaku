@@ -169,13 +169,29 @@ def test_bootstrap_world_writes_truth_file_and_payload(app):
 
     assert session is not None
     assert session.title and session.title.startswith("Generated Case ")
-    assert session.truth_file_path
+    assert session.truth_markdown
     assert session.truth_payload is not None
     assert session.truth_payload["culprit_npc_key"] == "journalist"
     assert session.truth_payload["required_clue_keys"] == ["torn-note"]
+    assert "journalist" in session.truth_markdown
+    assert "torn-note" in session.truth_markdown
 
-    truth_path = Path(session.truth_file_path)
-    assert truth_path.exists()
-    truth_text = truth_path.read_text(encoding="utf-8")
-    assert "journalist" in truth_text
-    assert "torn-note" in truth_text
+
+def test_bootstrap_world_writes_story_opening_for_player(app):
+    with TestClient(app) as client:
+        created = _create_session(client)
+        response = client.post(f"/api/v1/sessions/{created['id']}/bootstrap")
+
+    assert response.status_code == 200
+
+    with app.state.container.uow_factory() as uow:
+        session = uow.sessions.get(created["id"])
+
+    assert session is not None
+    assert session.story_markdown
+    assert session.story_markdown.strip()
+    assert session.title in session.story_markdown
+    assert "你" in session.story_markdown
+    assert "Entrance Hall" in session.story_markdown
+    assert "entrance-hall" not in session.story_markdown
+    assert "journalist" not in session.story_markdown

@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     app_name: str = "Kirigiri Honkaku"
     api_v1_prefix: str = "/api/v1"
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:25432/kirigiri_honkaku"
-    data_root: Path = Path("data")
     auto_create_schema: bool = False
     sql_echo: bool = False
     openai_base_url: str = "https://api.openai.com/v1"
@@ -25,9 +24,3 @@ class Settings(BaseSettings):
         env_prefix="KIRIGIRI_",
         extra="ignore",
     )
-
-    @property
-    def resolved_data_root(self) -> Path:
-        """返回运行时数据目录的绝对路径。"""
-
-        return self.data_root.resolve()

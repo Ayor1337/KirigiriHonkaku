@@ -40,7 +40,7 @@ class ClueModel(IdMixin, AuditMixin, Base):
     is_time_sensitive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     clue_state: Mapped[str | None] = mapped_column(String(64))
     discovery_rule: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
-    document_file_path: Mapped[str | None] = mapped_column(Text)
+    document_markdown: Mapped[str | None] = mapped_column(Text)
 
     session: Mapped["SessionModel"] = relationship(back_populates="clues")
     initial_location: Mapped["LocationModel | None"] = relationship(

@@ -64,14 +64,15 @@ class FallbackNarrativeRuntime(NarrativeRuntime):
         if action_type == "talk" and status == "accepted":
             target_npc_key = context.get("target_npc_key") or "npc"
             target_npc_name = context.get("target_npc_name") or target_npc_key.title()
-            narrative_text = f"{target_npc_name} 在 {location_text} 保持谨慎地回应了你的询问。"
+            player_text = context.get("player_text") or "你的询问"
+            narrative_text = f"{target_npc_name} 在 {location_text} 听完你提到“{player_text}”后，保持谨慎地作出了回应。"
             return NarrativeRuntimeResult(
                 narrative_text=narrative_text,
                 utterances=[
                     UtteranceDraft(
                         speaker_role="npc",
                         speaker_name=target_npc_name,
-                        content=f"我现在只能告诉你，今晚在 {location_text} 一带确实不太平。",
+                        content=f"关于你刚才提到的事，我现在只能告诉你，今晚在 {location_text} 一带确实不太平。",
                         tone_tag="guarded",
                         utterance_flags={"source": "fallback"},
                     )

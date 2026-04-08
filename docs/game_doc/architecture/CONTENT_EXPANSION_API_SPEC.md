@@ -17,6 +17,8 @@
 - `GET /api/v1/sessions/{session_id}/player`
 - `GET /api/v1/sessions/{session_id}/map`
 - `GET /api/v1/sessions/{session_id}/npcs`
+- `GET /api/v1/sessions/{session_id}/dialogues`
+- `GET /api/v1/sessions/{session_id}/dialogues/{dialogue_id}`
 - `POST /api/v1/actions`
 
 当前版本不新增：
@@ -48,7 +50,6 @@ POST /api/v1/sessions
 
 - 创建最小会话根记录
 - 生成 `uuid`
-- 初始化运行时目录
 - 返回当前状态 `draft`
 - `title` 初始允许为 `null`
 - `root_ids` 初始为空对象 `{}`
@@ -63,15 +64,6 @@ POST /api/v1/sessions
   "status": "draft",
   "start_time_minute": 0,
   "current_time_minute": 0,
-  "data_directories": {
-    "session_root": "...",
-    "story": "...",
-    "history": "...",
-    "truth": "...",
-    "npc": "...",
-    "dialogue": "...",
-    "clue": "..."
-  },
   "root_ids": {}
 }
 ```
@@ -280,12 +272,13 @@ GET /api/v1/sessions
 
 说明：
 
-- 只返回会话基础状态、目录信息与根 ID 信息
+- 只返回会话基础状态与根 ID 信息
 - `title` 在 `draft / generating` 阶段允许为 `null`
 - `root_ids` 在会话未完成 bootstrap 时允许为空对象 `{}`
 - 不再返回 `player`
 - 不再返回 `map`
 - 不再返回顶层 `exposure_value / exposure_level`
+- 不再返回 `data_directories`
 - 可用于确认 bootstrap 失败后状态是否已回退为 `draft`
 
 成功响应示例（`draft`）：
@@ -298,15 +291,6 @@ GET /api/v1/sessions
   "status": "draft",
   "start_time_minute": 0,
   "current_time_minute": 0,
-  "data_directories": {
-    "session_root": "...",
-    "story": "...",
-    "history": "...",
-    "truth": "...",
-    "npc": "...",
-    "dialogue": "...",
-    "clue": "..."
-  },
   "root_ids": {}
 }
 ```
@@ -321,15 +305,6 @@ GET /api/v1/sessions
   "status": "ready",
   "start_time_minute": 0,
   "current_time_minute": 15,
-  "data_directories": {
-    "session_root": "...",
-    "story": "...",
-    "history": "...",
-    "truth": "...",
-    "npc": "...",
-    "dialogue": "...",
-    "clue": "..."
-  },
   "root_ids": {
     "player_id": "...",
     "map_id": "..."
@@ -472,6 +447,92 @@ GET /api/v1/sessions
 
 - `404`：会话不存在
 
+### 6.6 `GET /api/v1/sessions/{session_id}/dialogues`
+
+说明：
+
+- 返回当前会话中的聊天会话列表
+- 按最近活跃时间倒序返回
+- draft 会话或尚无聊天记录时返回空数组 `[]`
+
+成功响应示例：
+
+```json
+[
+  {
+    "dialogue_id": "...",
+    "target_npc_key": "journalist",
+    "target_npc_name": "Journalist Ren",
+    "location_id": "...",
+    "location_key": "archive-room",
+    "location_name": "Archive Room",
+    "start_minute": 5,
+    "end_minute": 15,
+    "utterance_count": 4,
+    "last_utterance_preview": "关于你刚才提到的事，我现在只能告诉你……"
+  }
+]
+```
+
+失败语义：
+
+- `404`：会话不存在
+
+### 6.7 `GET /api/v1/sessions/{session_id}/dialogues/{dialogue_id}`
+
+说明：
+
+- 返回单个聊天会话详情
+- 详情主体为结构化 `utterances`
+- 不再返回 `summary_file_path / transcript_file_path`
+
+成功响应示例：
+
+```json
+{
+  "dialogue_id": "...",
+  "target_npc_key": "journalist",
+  "target_npc_name": "Journalist Ren",
+  "location_id": "...",
+  "location_key": "archive-room",
+  "location_name": "Archive Room",
+  "start_minute": 5,
+  "end_minute": 15,
+  "utterance_count": 4,
+  "last_utterance_preview": "关于你刚才提到的事，我现在只能告诉你……",
+  "tag_flags": {
+    "tone": "guarded"
+  },
+  "utterances": [
+    {
+      "sequence_no": 1,
+      "speaker_role": "player",
+      "speaker_name": "Detective Kirigiri",
+      "content": "昨晚你看到了什么？",
+      "tone_tag": "probing",
+      "utterance_flags": {
+        "source": "player-input"
+      }
+    },
+    {
+      "sequence_no": 2,
+      "speaker_role": "npc",
+      "speaker_name": "Journalist Ren",
+      "content": "关于你刚才提到的事，我现在只能告诉你……",
+      "tone_tag": "guarded",
+      "utterance_flags": {
+        "source": "fallback"
+      }
+    }
+  ]
+}
+```
+
+失败语义：
+
+- `404`：会话不存在
+- `404`：聊天会话不存在，detail 为 `Dialogue not found for session.`
+
 当前会话状态包括：
 
 - `draft`
@@ -501,15 +562,14 @@ GET /api/v1/sessions
 
 ### 7.3 AI 生成记录
 
-每次动作请求在经过叙事 runtime 后，都会把本次生成结果追加写入会话历史目录下的 `ai_generation_log.jsonl`。
+每次动作请求在经过叙事 runtime 后，都会把本次生成结果追加写入数据库中的 `session.ai_generation_log_entries`。
 
-当前 `storage_refs` 中会返回：
+同时还会直接更新会话上的：
 
-- `ai_generation_log`：本次会话级 AI 生成日志文件路径
-- `latest_action_log`：最近一次动作摘要 JSON 文件路径
-- `history_markdown`：动作历史 Markdown 文件路径
+- `latest_action_payload`：最近一次动作结构化快照
+- `history_markdown`：动作历史 Markdown 正文
 
-`ai_generation_log.jsonl` 中每一行都是一条独立 JSON，包含：
+`ai_generation_log_entries` 中每一项都是一条独立 JSON，包含：
 
 - `action_type`
 - `status`
@@ -517,9 +577,20 @@ GET /api/v1/sessions
 - `raw_output_text`
 - `result`
 
-### 7.4 其他动作语义
+当前 `POST /api/v1/actions` 响应不再返回 `storage_refs`。
 
-当前 `move / talk / investigate / gather / accuse` 的引擎语义保持不变。
+### 7.4 `talk` 动作补充约定
+
+当前 `talk` 额外约定如下：
+
+- `payload.target_npc_key` 仍为必填
+- `payload.text` 新增为玩家本轮发言，必填
+- 若命中同会话、同 NPC、同地点的最近一条可续聊 `dialogue`，后端会复用原会话并追加 `utterances`
+- `state_delta_summary.dialogue.dialogue_id` 会返回当前命中的聊天会话 ID，供前端继续读取详情
+
+### 7.5 其他动作语义
+
+当前 `move / investigate / gather / accuse` 的引擎语义保持不变。
 
 ## 8. 当前结论
 
@@ -529,7 +600,11 @@ GET /api/v1/sessions
 - 新增 `POST /sessions/bootstrap-stream`，用于首页实时创建与阶段显示
 - `GET /sessions` 继续返回全部会话列表
 - `GET /sessions/{id}` 继续返回 `root_ids`，用于前端继续游戏
-- 玩家详情、地图详情、暴露度与已见过 NPC 列表已拆到独立读取接口
+- 玩家详情、地图详情、暴露度、已见过 NPC 列表与聊天记录已拆到独立读取接口
 - `bootstrap` 兼容接口继续保留，但不再是首页新建流程的首选入口
 - 前端阶段名称不由后端返回，而是由前端基于占位符自行翻译
+
+
+
+
 

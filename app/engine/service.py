@@ -27,6 +27,8 @@ class GameEngine:
     """统一调度规则模块的核心引擎。"""
 
     def __init__(self) -> None:
+        """按固定顺序注册规则模块，保证动作结算语义稳定。"""
+
         self.modules = [
             TimeRule(),
             MapRule(),
@@ -60,10 +62,12 @@ class GameEngine:
             dialogues=uow.dialogues.list_by_session(action.session_id),
             previous_time_minute=session.current_time_minute,
         )
+        # 预校验阶段只负责解析目标和拒绝非法动作，不直接改动硬状态。
         self._prevalidate(action, context)
 
         module_outputs: dict[str, Any] = {}
         if context.accepted:
+            # 所有规则共享同一份 context，前置规则写入的结果会被后置规则消费。
             for module in self.modules:
                 module_outputs[module.name] = module.apply(action, context)
         else:
@@ -74,6 +78,7 @@ class GameEngine:
             dialogue_summary = self._create_dialogue(context, uow)
 
         latest_dialogue = dialogue_summary or self._get_latest_dialogue_summary(context)
+        # 这里统一补齐缺失的派生字段，确保即使某个规则未触发也能返回完整快照。
         public_context = module_outputs.get("accusation", {}).get("public_context") or self._describe_public_context(context)
         exposure = module_outputs.get("exposure", {}).get("exposure") or {
             "previous_value": context.session.exposure_value,
@@ -143,6 +148,8 @@ class GameEngine:
         )
 
     def _prevalidate(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        """在规则链运行前解析动作目标，并尽早拒绝无效输入。"""
+
         if action.action_type == "move":
             self._resolve_move_target(action, context)
         elif action.action_type == "talk":
@@ -153,6 +160,8 @@ class GameEngine:
             self._resolve_accuse_target(action, context)
 
     def _resolve_move_target(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        """校验移动目标是否存在且可达，并写回解析后的地点对象。"""
+
         current_location = context.player.character.current_location
         if current_location is None:
             context.reject("Player has no current location.")
@@ -182,9 +191,16 @@ class GameEngine:
         context.resolved_target_location = target_location
 
     def _resolve_talk_target(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        """校验对话文本和 NPC 目标，并确认对方当前可被交互。"""
+
         current_location = context.player.character.current_location
         if current_location is None:
             context.reject("Player has no current location.")
+            return
+
+        player_text = action.payload.get("text")
+        if not isinstance(player_text, str) or not player_text.strip():
+            context.reject("Talk text is required.")
             return
 
         target_npc_key = action.payload.get("target_npc_key")
@@ -209,6 +225,8 @@ class GameEngine:
         context.resolved_target_npc = target_npc
 
     def _resolve_gather_location(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        """确保调查动作只针对玩家当前所在地点。"""
+
         current_location = context.player.character.current_location
         if current_location is None:
             context.reject("Player has no current location.")
@@ -221,6 +239,8 @@ class GameEngine:
             context.reject("Gather action must target the current location.")
 
     def _resolve_accuse_target(self, action: ActionRequest, context: ActionExecutionContext) -> None:
+        """校验指认目标，并确认其处于可被当面对质的场景中。"""
+
         current_location = context.player.character.current_location
         if current_location is None:
             context.reject("Player has no current location.")
@@ -252,6 +272,8 @@ class GameEngine:
         connections: list[ConnectionModel],
         unlocked_access: list[str],
     ) -> bool:
+        """判断两点之间是否存在当前可通行的直接连接。"""
+
         for connection in connections:
             if not GameEngine._connection_is_accessible(connection, unlocked_access):
                 continue
@@ -267,6 +289,8 @@ class GameEngine:
         connections: list[ConnectionModel],
         unlocked_access: list[str],
     ) -> list[LocationModel]:
+        """列出当前位置可直达的地点，用于场景快照展示。"""
+
         reachable: dict[str, LocationModel] = {}
         for connection in connections:
             if not self._connection_is_accessible(connection, unlocked_access):
@@ -279,6 +303,8 @@ class GameEngine:
 
     @staticmethod
     def _connection_is_accessible(connection: ConnectionModel, unlocked_access: list[str]) -> bool:
+        """按显式锁定状态和访问令牌判断连接是否可用。"""
+
         if connection.is_hidden or connection.is_locked:
             return False
         required_token = connection.access_rule.get("required_token")
@@ -288,6 +314,8 @@ class GameEngine:
 
     @staticmethod
     def _clue_is_discoverable(clue, current_time_minute: int, unlocked_access: list[str]) -> bool:
+        """根据时间窗和访问令牌判断线索此刻是否可被发现。"""
+
         discovery_rule = clue.discovery_rule or {}
         required_tokens = discovery_rule.get("required_access_tokens", [])
         if required_tokens and not set(required_tokens).issubset(set(unlocked_access)):
@@ -298,6 +326,8 @@ class GameEngine:
         return True
 
     def _create_dialogue(self, context: ActionExecutionContext, uow: SqlAlchemyUnitOfWork) -> dict[str, Any]:
+        """创建或复用一条对话聚合，并返回给上层消费的摘要。"""
+
         current_location = context.player.character.current_location
         target_npc = context.resolved_target_npc
         if current_location is None or target_npc is None:
@@ -306,31 +336,37 @@ class GameEngine:
         if target_npc.state is not None:
             target_npc.state.has_met_player = True
 
-        dialogue = DialogueModel(
-            session=context.session,
-            dialogue_type="conversation",
-            location=current_location,
-            start_minute=context.previous_time_minute,
-            end_minute=context.session.current_time_minute,
-            tag_flags={},
-        )
-        dialogue.participants.append(
-            DialogueParticipantModel(
-                character=context.player.character,
-                participant_role="player",
+        dialogue = self._find_reusable_dialogue(context, target_npc.character_id, current_location.id)
+        if dialogue is None:
+            # 同一地点首次与目标 NPC 对话时新建聚合，后续回合则复用以累积发言历史。
+            dialogue = DialogueModel(
+                session=context.session,
+                dialogue_type="conversation",
+                location=current_location,
+                start_minute=context.previous_time_minute,
+                end_minute=context.session.current_time_minute,
+                tag_flags={},
             )
-        )
-        dialogue.participants.append(
-            DialogueParticipantModel(
-                character=target_npc.character,
-                participant_role="npc",
+            dialogue.participants.append(
+                DialogueParticipantModel(
+                    character=context.player.character,
+                    participant_role="player",
+                )
             )
-        )
-        if uow.session is None:
-            raise RuntimeError("UnitOfWork session has not been opened.")
-        uow.session.add(dialogue)
-        uow.session.flush()
-        context.dialogues.append(dialogue)
+            dialogue.participants.append(
+                DialogueParticipantModel(
+                    character=target_npc.character,
+                    participant_role="npc",
+                )
+            )
+            if uow.session is None:
+                raise RuntimeError("UnitOfWork session has not been opened.")
+            uow.session.add(dialogue)
+            uow.session.flush()
+            context.dialogues.append(dialogue)
+        else:
+            dialogue.end_minute = context.session.current_time_minute
+
         context.created_dialogue = dialogue
         return {
             "dialogue_id": str(dialogue.id),
@@ -341,7 +377,29 @@ class GameEngine:
             "participant_keys": ["player", target_npc.template_key],
         }
 
+    @staticmethod
+    def _find_reusable_dialogue(context: ActionExecutionContext, target_character_id: str, current_location_id: str):
+        """查找同地点、同参与者的最近一条对话，用于延续历史。"""
+
+        candidate_dialogues = sorted(
+            context.dialogues,
+            key=lambda dialogue: (dialogue.end_minute or dialogue.start_minute, dialogue.created_at),
+            reverse=True,
+        )
+        for dialogue in candidate_dialogues:
+            if dialogue.location_id != current_location_id:
+                continue
+            participant_ids = {str(participant.character_id) for participant in dialogue.participants}
+            if str(context.player.character_id) not in participant_ids:
+                continue
+            if str(target_character_id) not in participant_ids:
+                continue
+            return dialogue
+        return None
+
     def _get_latest_dialogue_summary(self, context: ActionExecutionContext) -> dict[str, Any] | None:
+        """在当前动作未新建对话时，回退到最近一条对话摘要。"""
+
         if not context.dialogues:
             return None
 
@@ -382,6 +440,8 @@ class GameEngine:
         exposure: dict[str, Any],
         risk: dict[str, Any],
     ) -> dict[str, Any]:
+        """组装给叙事层和前端消费的最小场景快照。"""
+
         current_location = context.player.character.current_location
         unlocked_access = []
         if context.player.state is not None:
@@ -440,6 +500,8 @@ class GameEngine:
         }
 
     def _describe_public_context(self, context: ActionExecutionContext) -> dict[str, Any]:
+        """推导玩家当前是否处于公共事件语境中。"""
+
         current_location = context.player.character.current_location
         if current_location is None:
             return {

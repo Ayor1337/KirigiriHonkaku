@@ -26,7 +26,6 @@ class AppContainer:
     """聚合应用运行时依赖，避免路由层直接拼装底层对象。"""
 
     settings: Settings
-    file_storage: FileStorage
     game_engine: GameEngine
     ai_runtime: NarrativeRuntime
     game_generation_runtime: GameGenerationRuntime
@@ -42,7 +41,6 @@ def build_container(settings: Settings) -> AppContainer:
 
     db_engine = create_db_engine(settings)
     session_factory = create_session_factory(db_engine)
-    file_storage = FileStorage(settings.resolved_data_root)
     uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
     ai_runtime = create_narrative_runtime(
         base_url=settings.openai_base_url,
@@ -56,15 +54,14 @@ def build_container(settings: Settings) -> AppContainer:
         model=settings.openai_model,
         timeout_seconds=settings.openai_game_generation_timeout_seconds,
     )
-    narrative_service = NarrativeService(file_storage, ai_runtime)
+    narrative_service = NarrativeService(ai_runtime)
     return AppContainer(
         settings=settings,
-        file_storage=file_storage,
         game_engine=GameEngine(),
         ai_runtime=ai_runtime,
         game_generation_runtime=game_generation_runtime,
         narrative_service=narrative_service,
-        world_bootstrap_service=WorldBootstrapService(uow_factory, file_storage, game_generation_runtime),
+        world_bootstrap_service=WorldBootstrapService(uow_factory, game_generation_runtime),
         world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,
         db_engine=db_engine,
@@ -81,9 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI):
         """负责应用启动和关闭时的基础资源管理。"""
 
-        container.file_storage.initialize()
         if container.settings.auto_create_schema:
-            # 测试环境直接建表，真实环境通过 Alembic 迁移管理 schema。
             Base.metadata.create_all(bind=container.db_engine)
         yield
         container.db_engine.dispose()

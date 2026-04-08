@@ -64,24 +64,19 @@ class BootstrapResult:
 class WorldBootstrapService:
     """通过多轮 AGENT 生成并装配完整游戏世界。"""
 
-    def __init__(self, uow_factory, file_storage, generation_runtime: GameGenerationRuntime):
+    def __init__(self, uow_factory, generation_runtime: GameGenerationRuntime):
         self._uow_factory = uow_factory
-        self._file_storage = file_storage
         self._generation_runtime = generation_runtime
 
     def create_draft_session(self, progress_callback: ProgressCallback = None) -> DraftSessionResult:
         self._emit_progress(progress_callback, "session_creating")
         with self._uow_factory() as uow:
             session = uow.sessions.create()
-            directories = self._file_storage.create_session_tree(session.uuid)
-            session.story_file_path = f"{directories['story']}\\STORY.md"
-            session.history_file_path = f"{directories['history']}\\HISTORY.md"
-            session.truth_file_path = f"{directories['truth']}\\TRUTH.md"
             uow.commit()
             result = DraftSessionResult(
                 session_id=str(session.id),
                 session_uuid=session.uuid,
-                directories=directories,
+                directories={},
             )
         self._emit_progress(progress_callback, "session_created", {"session_id": result.session_id})
         return result
@@ -139,20 +134,9 @@ class WorldBootstrapService:
             uow.commit()
 
     def _reset_generated_files(self, session_uuid: str) -> None:
-        session_root = Path(self._file_storage.root) / "sessions" / session_uuid
-        for subdir in ("npc", "clue", "dialogue"):
-            shutil.rmtree(session_root / subdir, ignore_errors=True)
-            (session_root / subdir).mkdir(parents=True, exist_ok=True)
-        truth_dir = session_root / "truth"
-        if truth_dir.exists():
-            for child in truth_dir.iterdir():
-                if child.is_file():
-                    child.unlink()
-        truth_dir.mkdir(parents=True, exist_ok=True)
+        return None
 
     def _persist_generated_world(self, session, blueprint: WorldBlueprint, db_session) -> BootstrapResult:
-        self._file_storage.create_session_tree(session.uuid)
-
         game_map = MapModel(
             session=session,
             template_key=blueprint.map.template_key,
@@ -196,12 +180,13 @@ class WorldBootstrapService:
             )
 
         player_seed = blueprint.player
+        start_location = locations_by_key[player_seed.start_location_key]
         player_character = CharacterModel(
             session=session,
             kind="player",
             display_name=player_seed.display_name,
             public_identity=player_seed.public_identity,
-            current_location=locations_by_key[player_seed.start_location_key],
+            current_location=start_location,
         )
         player = PlayerModel(
             session=session,
@@ -253,24 +238,13 @@ class WorldBootstrapService:
                 public_identity=npc_seed.public_identity,
                 current_location=locations_by_key[npc_seed.location_key],
             )
-            slug = self._slugify(npc_seed.key)
             npc = NpcModel(
                 session=session,
                 character=npc_character,
                 template_key=npc_seed.key,
                 role_type=npc_seed.role_type,
-                profile_file_path=self._file_storage.write_session_file(
-                    session.uuid,
-                    "npc",
-                    f"{slug}_PROFILE.md",
-                    npc_seed.profile_markdown,
-                ),
-                memory_file_path=self._file_storage.write_session_file(
-                    session.uuid,
-                    "npc",
-                    f"{slug}_MEMORY.md",
-                    npc_seed.memory_markdown,
-                ),
+                profile_markdown=npc_seed.profile_markdown,
+                memory_markdown=npc_seed.memory_markdown,
             )
             npc.state = NpcStateModel(
                 current_location=locations_by_key[npc_seed.location_key],
@@ -324,12 +298,7 @@ class WorldBootstrapService:
                 is_time_sensitive=clue_seed.is_time_sensitive,
                 clue_state=clue_seed.clue_state,
                 discovery_rule=dict(clue_seed.discovery_rule),
-                document_file_path=self._file_storage.write_session_file(
-                    session.uuid,
-                    "clue",
-                    f"{self._slugify(clue_seed.name)}.md",
-                    clue_seed.document_markdown,
-                ),
+                document_markdown=clue_seed.document_markdown,
             )
             db_session.add(clue)
             clue_models.append(clue)
@@ -361,8 +330,12 @@ class WorldBootstrapService:
 
         session.title = blueprint.title
         session.truth_payload = blueprint.truth.model_dump()
-        if session.truth_file_path:
-            self._file_storage.write_text(session.truth_file_path, self._render_truth_markdown(session.truth_payload))
+        session.story_markdown = self._render_story_markdown(
+            blueprint=blueprint,
+            start_location=start_location,
+            player=player,
+        )
+        session.truth_markdown = self._render_truth_markdown(session.truth_payload)
         session.status = "ready"
         db_session.flush()
 
@@ -398,6 +371,37 @@ class WorldBootstrapService:
     @staticmethod
     def _slugify(value: str) -> str:
         return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+    @staticmethod
+    def _render_story_markdown(*, blueprint: WorldBlueprint, start_location: LocationModel, player: PlayerModel) -> str:
+        """基于现有世界蓝图渲染玩家开局时看到的 STORY.md。"""
+
+        background = player.background_text or player.character.public_identity or "你受邀来到此地"
+        location_description = start_location.description or f"这里是 {start_location.name}。"
+
+        visible_event = next((event for event in blueprint.events if event.is_public_event and event.description), None)
+        visible_clue = next(
+            (
+                clue
+                for clue in blueprint.clues
+                if clue.current_location_key == start_location.key and clue.description
+            ),
+            None,
+        )
+
+        if visible_event is not None:
+            hook_text = f"你刚站稳脚步，就意识到这里并不只是表面上的平静。{visible_event.description}"
+        elif visible_clue is not None:
+            hook_text = f"在你视线可及的范围里，已经有异样先一步浮了出来：{visible_clue.description}"
+        else:
+            hook_text = "空气里有一种难以言明的紧绷感，仿佛每个人都在回避真正重要的那句话。"
+
+        return (
+            f"# {blueprint.title}\n\n"
+            f"你来到 {blueprint.map.display_name} 的 {start_location.name}。{background}。{location_description}\n\n"
+            f"{hook_text} 你知道自己此刻看到的还只是案件最外层的轮廓，真正关键的部分，仍藏在人、地点与时间的细缝里。\n\n"
+            f"现在，你能依靠的只有自己的观察、判断与发问。先从眼前的现场开始，决定下一步该去哪里、该接触谁、该把哪一处异常当成突破口。\n"
+        )
 
     @staticmethod
     def _render_truth_markdown(truth_payload: dict) -> str:

@@ -97,7 +97,6 @@ class ActionResult(BaseModel):
     ai_tasks: list[AiTask] = Field(default_factory=list)
     soft_state_patch: SoftStatePatch = Field(default_factory=SoftStatePatch)
     narrative_text: str | None = None
-    storage_refs: dict[str, str] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
 
 

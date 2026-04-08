@@ -18,8 +18,8 @@ class DialogueModel(IdMixin, AuditMixin, Base):
     location_id: Mapped[str] = mapped_column(ForeignKey("location.id"), nullable=False)
     start_minute: Mapped[int] = mapped_column(Integer, nullable=False)
     end_minute: Mapped[int | None] = mapped_column(Integer)
-    summary_file_path: Mapped[str | None] = mapped_column(Text)
-    transcript_file_path: Mapped[str | None] = mapped_column(Text)
+    summary_markdown: Mapped[str | None] = mapped_column(Text)
+    transcript_markdown: Mapped[str | None] = mapped_column(Text)
     tag_flags: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
 
     session: Mapped["SessionModel"] = relationship(back_populates="dialogues")

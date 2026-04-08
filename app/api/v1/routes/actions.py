@@ -35,6 +35,5 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
             ai_tasks=engine_result.ai_tasks,
             soft_state_patch=narrative_result.soft_state_patch,
             narrative_text=narrative_result.narrative_text,
-            storage_refs=narrative_result.storage_refs,
             errors=engine_result.errors,
         )

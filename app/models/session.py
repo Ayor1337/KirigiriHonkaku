@@ -9,7 +9,7 @@ from app.models.common import AuditMixin, IdMixin
 
 
 class SessionModel(IdMixin, AuditMixin, Base):
-    """一局游戏的根记录，承载全局状态与文本附件路径。"""
+    """一局游戏的根记录，承载全局状态与运行时文本内容。"""
 
     __tablename__ = "session"
 
@@ -27,9 +27,11 @@ class SessionModel(IdMixin, AuditMixin, Base):
     map_template_key: Mapped[str | None] = mapped_column(String(128))
     truth_template_key: Mapped[str | None] = mapped_column(String(128))
     truth_payload: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
-    story_file_path: Mapped[str | None] = mapped_column(Text)
-    history_file_path: Mapped[str | None] = mapped_column(Text)
-    truth_file_path: Mapped[str | None] = mapped_column(Text)
+    story_markdown: Mapped[str | None] = mapped_column(Text)
+    history_markdown: Mapped[str | None] = mapped_column(Text)
+    truth_markdown: Mapped[str | None] = mapped_column(Text)
+    latest_action_payload: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
+    ai_generation_log_entries: Mapped[list] = mapped_column(JSON_VARIANT, default=list, nullable=False)
 
     characters: Mapped[list["CharacterModel"]] = relationship(
         back_populates="session",

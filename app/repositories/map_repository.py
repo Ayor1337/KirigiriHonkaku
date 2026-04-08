@@ -12,9 +12,13 @@ class MapRepository:
     """封装地图聚合读取。"""
 
     def __init__(self, db_session: Session):
+        """绑定当前请求事务中的 SQLAlchemy Session。"""
+
         self.db_session = db_session
 
     def get_by_session(self, session_id: str) -> MapModel | None:
+        """读取某个会话的地图根对象及其关联地点、连接。"""
+
         statement = (
             select(MapModel)
             .options(

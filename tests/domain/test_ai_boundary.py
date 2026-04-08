@@ -39,7 +39,6 @@ def test_build_container_uses_fallback_runtime_without_provider_config():
     runtime_root.mkdir(parents=True, exist_ok=True)
     settings = Settings(
         database_url=f"sqlite+pysqlite:///{runtime_root / 'test.db'}",
-        data_root=runtime_root / "data",
         auto_create_schema=True,
         openai_api_key=None,
         openai_model=None,
@@ -61,7 +60,6 @@ def test_build_container_uses_dedicated_game_generation_timeout():
     runtime_root.mkdir(parents=True, exist_ok=True)
     settings = Settings(
         database_url=f"sqlite+pysqlite:///{runtime_root / 'test.db'}",
-        data_root=runtime_root / "data",
         auto_create_schema=True,
         openai_api_key="test-key",
         openai_model="test-model",

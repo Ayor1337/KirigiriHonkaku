@@ -56,6 +56,39 @@ class SessionNpcResponse(BaseModel):
     has_met_player: bool = False
 
 
+class SessionDialogueUtteranceResponse(BaseModel):
+    """聊天详情中的单条发言。"""
+
+    sequence_no: int
+    speaker_role: str | None = None
+    speaker_name: str
+    content: str
+    tone_tag: str | None = None
+    utterance_flags: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionDialogueSummaryResponse(BaseModel):
+    """聊天会话列表项。"""
+
+    dialogue_id: UUID
+    target_npc_key: str | None = None
+    target_npc_name: str | None = None
+    location_id: UUID | None = None
+    location_key: str | None = None
+    location_name: str | None = None
+    start_minute: int
+    end_minute: int | None = None
+    utterance_count: int = 0
+    last_utterance_preview: str | None = None
+
+
+class SessionDialogueDetailResponse(SessionDialogueSummaryResponse):
+    """单个聊天会话详情。"""
+
+    tag_flags: dict[str, Any] = Field(default_factory=dict)
+    utterances: list[SessionDialogueUtteranceResponse] = Field(default_factory=list)
+
+
 class SessionMapLocationResponse(BaseModel):
     """会话详情里的地点资料。"""
 
@@ -98,7 +131,6 @@ class SessionMapResponse(BaseModel):
 class SessionResponse(SessionSummaryResponse):
     """会话基础详情接口返回结构。"""
 
-    data_directories: dict[str, Any] = Field(default_factory=dict)
     root_ids: dict[str, str] = Field(default_factory=dict)
 
 

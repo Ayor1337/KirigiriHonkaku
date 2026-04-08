@@ -15,7 +15,6 @@ def app():
     runtime_root.mkdir(parents=True, exist_ok=True)
     settings = Settings(
         database_url=f"sqlite+pysqlite:///{runtime_root / 'test.db'}",
-        data_root=runtime_root / "data",
         auto_create_schema=True,
     )
     app_instance = create_app(settings)

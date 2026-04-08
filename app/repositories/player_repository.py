@@ -12,9 +12,13 @@ class PlayerRepository:
     """封装玩家聚合读取。"""
 
     def __init__(self, db_session: Session):
+        """绑定当前请求事务中的 SQLAlchemy Session。"""
+
         self.db_session = db_session
 
     def get_by_session(self, session_id: str) -> PlayerModel | None:
+        """读取会话中的玩家聚合及其常用关联状态。"""
+
         statement = (
             select(PlayerModel)
             .options(
