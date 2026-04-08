@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, Uniqu
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.types import JSON_VARIANT
 from app.models.common import AuditMixin, IdMixin
 
 
@@ -38,7 +39,8 @@ class ClueModel(IdMixin, AuditMixin, Base):
     is_movable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_time_sensitive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     clue_state: Mapped[str | None] = mapped_column(String(64))
-    document_file_path: Mapped[str | None] = mapped_column(Text)
+    discovery_rule: Mapped[dict] = mapped_column(JSON_VARIANT, default=dict, nullable=False)
+    document_markdown: Mapped[str | None] = mapped_column(Text)
 
     session: Mapped["SessionModel"] = relationship(back_populates="clues")
     initial_location: Mapped["LocationModel | None"] = relationship(

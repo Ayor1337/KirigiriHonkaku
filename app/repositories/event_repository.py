@@ -12,9 +12,13 @@ class EventRepository:
     """封装事件聚合读取。"""
 
     def __init__(self, db_session: Session):
+        """绑定当前请求事务中的 SQLAlchemy Session。"""
+
         self.db_session = db_session
 
     def list_by_session(self, session_id: str) -> list[EventModel]:
+        """读取会话中的全部事件及其参与者。"""
+
         statement = (
             select(EventModel)
             .options(

@@ -37,7 +37,8 @@ EXPECTED_TABLES = {
 
 EXPECTED_COLUMNS = {
     "location": {"key"},
-    "clue": {"key"},
+    "clue": {"key", "discovery_rule"},
+    "session": {"truth_payload"},
 }
 
 
@@ -55,10 +56,27 @@ def test_alembic_upgrade_applies_fixed_schema_snapshot():
         try:
             inspector = inspect(engine)
             assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
-            for table_name, expected_columns in EXPECTED_COLUMNS.items():
-                actual_columns = {column["name"] for column in inspector.get_columns(table_name)}
-                assert expected_columns.issubset(actual_columns)
+
+            session_columns = {column["name"] for column in inspector.get_columns("session")}
+            assert {"truth_payload", "story_markdown", "history_markdown", "truth_markdown", "latest_action_payload", "ai_generation_log_entries"}.issubset(session_columns)
+            assert {"story_file_path", "history_file_path", "truth_file_path"}.isdisjoint(session_columns)
+
+            npc_columns = {column["name"] for column in inspector.get_columns("npc")}
+            assert {"profile_markdown", "memory_markdown"}.issubset(npc_columns)
+            assert {"profile_file_path", "memory_file_path"}.isdisjoint(npc_columns)
+
+            clue_columns = {column["name"] for column in inspector.get_columns("clue")}
+            assert {"key", "discovery_rule", "document_markdown"}.issubset(clue_columns)
+            assert "document_file_path" not in clue_columns
+
+            dialogue_columns = {column["name"] for column in inspector.get_columns("dialogue")}
+            assert {"summary_markdown", "transcript_markdown"}.issubset(dialogue_columns)
+            assert {"summary_file_path", "transcript_file_path"}.isdisjoint(dialogue_columns)
+
+            location_columns = {column["name"] for column in inspector.get_columns("location")}
+            assert "key" in location_columns
         finally:
             engine.dispose()
     finally:
         shutil.rmtree(runtime_root, ignore_errors=True)
+

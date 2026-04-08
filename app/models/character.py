@@ -257,8 +257,8 @@ class NpcModel(IdMixin, AuditMixin, Base):
     character_id: Mapped[str] = mapped_column(ForeignKey("character.id"), unique=True, nullable=False)
     template_key: Mapped[str | None] = mapped_column(String(128))
     role_type: Mapped[str | None] = mapped_column(String(128))
-    profile_file_path: Mapped[str | None] = mapped_column(Text)
-    memory_file_path: Mapped[str | None] = mapped_column(Text)
+    profile_markdown: Mapped[str | None] = mapped_column(Text)
+    memory_markdown: Mapped[str | None] = mapped_column(Text)
 
     session: Mapped["SessionModel"] = relationship(back_populates="npcs")
     character: Mapped["CharacterModel"] = relationship(back_populates="npc")
@@ -284,6 +284,7 @@ class NpcStateModel(IdMixin, UpdatedAtMixin, Base):
     attitude_to_player: Mapped[str | None] = mapped_column(String(32))
     alertness_level: Mapped[str | None] = mapped_column(String(32))
     emotion_tag: Mapped[str | None] = mapped_column(String(32))
+    has_met_player: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_in_event: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_under_pressure: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

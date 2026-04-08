@@ -10,23 +10,17 @@ class Settings(BaseSettings):
 
     app_name: str = "Kirigiri Honkaku"
     api_v1_prefix: str = "/api/v1"
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/kirigiri_honkaku"
-    data_root: Path = Path("data")
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:25432/kirigiri_honkaku"
     auto_create_schema: bool = False
     sql_echo: bool = False
     openai_base_url: str = "https://api.openai.com/v1"
     openai_api_key: str | None = None
     openai_model: str | None = None
     openai_timeout_seconds: float = 30.0
+    openai_game_generation_timeout_seconds: float = 600.0
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="KIRIGIRI_",
         extra="ignore",
     )
-
-    @property
-    def resolved_data_root(self) -> Path:
-        """返回运行时数据目录的绝对路径。"""
-
-        return self.data_root.resolve()

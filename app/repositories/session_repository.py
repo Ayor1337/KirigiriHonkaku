@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.session import SessionModel
-from app.schemas.session import CreateSessionRequest
 
 
 class SessionRepository:
@@ -15,19 +14,19 @@ class SessionRepository:
     def __init__(self, db_session: Session):
         self.db_session = db_session
 
-    def create(self, payload: CreateSessionRequest) -> SessionModel:
+    def create(self) -> SessionModel:
         """创建最小会话根记录。"""
 
         session = SessionModel(
             uuid=str(uuid4()),
-            title=payload.title,
+            title=None,
             status="draft",
             start_time_minute=0,
             current_time_minute=0,
             exposure_value=0,
-            case_template_key=payload.case_template_key,
-            map_template_key=payload.map_template_key,
-            truth_template_key=payload.truth_template_key,
+            exposure_level="low",
+            accusation_state="idle",
+            truth_payload={},
         )
         self.db_session.add(session)
         self.db_session.flush()
@@ -43,3 +42,9 @@ class SessionRepository:
 
         statement = select(SessionModel).where(SessionModel.uuid == session_uuid)
         return self.db_session.scalar(statement)
+
+    def list_all(self) -> list[SessionModel]:
+        """读取全部会话，按创建时间倒序。"""
+
+        statement = select(SessionModel).order_by(SessionModel.created_at.desc())
+        return list(self.db_session.scalars(statement))

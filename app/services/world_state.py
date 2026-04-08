@@ -20,9 +20,13 @@ class WorldStateService:
     """统一装配会话级世界聚合。"""
 
     def __init__(self, uow_factory):
+        """注入工作单元工厂，供读取世界聚合时按需创建事务。"""
+
         self._uow_factory = uow_factory
 
     def get_world(self, session_id: str) -> WorldStateSnapshot:
+        """按会话 ID 读取当前完整世界快照。"""
+
         with self._uow_factory() as uow:
             session = uow.sessions.get(session_id)
             if session is None:

@@ -25,7 +25,7 @@ class ActionRequest(BaseModel):
     """统一动作输入。"""
 
     session_id: str
-    action_type: Literal["move", "talk", "investigate", "accuse"]
+    action_type: Literal["move", "talk", "investigate", "gather", "accuse"]
     actor_id: str
     payload: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None
@@ -97,7 +97,6 @@ class ActionResult(BaseModel):
     ai_tasks: list[AiTask] = Field(default_factory=list)
     soft_state_patch: SoftStatePatch = Field(default_factory=SoftStatePatch)
     narrative_text: str | None = None
-    storage_refs: dict[str, str] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
 
 

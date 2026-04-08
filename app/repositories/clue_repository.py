@@ -12,9 +12,13 @@ class ClueRepository:
     """封装线索聚合读取。"""
 
     def __init__(self, db_session: Session):
+        """绑定当前请求事务中的 SQLAlchemy Session。"""
+
         self.db_session = db_session
 
     def list_by_session(self, session_id: str) -> list[ClueModel]:
+        """读取会话中的全部线索及其持有/所在关系。"""
+
         statement = (
             select(ClueModel)
             .options(
