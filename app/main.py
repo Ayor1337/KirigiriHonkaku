@@ -16,6 +16,7 @@ from app.engine.service import GameEngine
 from app.models import *  # noqa: F403
 from app.repositories.uow import SqlAlchemyUnitOfWork
 from app.services.board import BoardService
+from app.services.board_auto_sync import BoardAutoSyncService
 from app.services.narrative import NarrativeService
 from app.services.world_bootstrap import WorldBootstrapService
 from app.services.world_state import WorldStateService
@@ -32,6 +33,7 @@ class AppContainer:
     game_generation_runtime: GameGenerationRuntime
     narrative_service: NarrativeService
     board_service: BoardService
+    board_auto_sync_service: BoardAutoSyncService
     world_bootstrap_service: WorldBootstrapService
     world_state_service: WorldStateService
     uow_factory: Callable[[], SqlAlchemyUnitOfWork]
@@ -57,6 +59,7 @@ def build_container(settings: Settings) -> AppContainer:
         timeout_seconds=settings.openai_game_generation_timeout_seconds,
     )
     narrative_service = NarrativeService(ai_runtime)
+    board_auto_sync_service = BoardAutoSyncService()
     return AppContainer(
         settings=settings,
         game_engine=GameEngine(),
@@ -64,7 +67,12 @@ def build_container(settings: Settings) -> AppContainer:
         game_generation_runtime=game_generation_runtime,
         narrative_service=narrative_service,
         board_service=BoardService(uow_factory),
-        world_bootstrap_service=WorldBootstrapService(uow_factory, game_generation_runtime),
+        board_auto_sync_service=board_auto_sync_service,
+        world_bootstrap_service=WorldBootstrapService(
+            uow_factory,
+            game_generation_runtime,
+            board_auto_sync_service=board_auto_sync_service,
+        ),
         world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,
         db_engine=db_engine,

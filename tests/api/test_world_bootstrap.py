@@ -17,6 +17,7 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
         fetched_state = client.get(f"/api/v1/sessions/{created['id']}/state")
         fetched_player = client.get(f"/api/v1/sessions/{created['id']}/player")
         fetched_map = client.get(f"/api/v1/sessions/{created['id']}/map")
+        fetched_board = client.get(f"/api/v1/sessions/{created['id']}/board")
 
     assert response.status_code == 200
     payload = response.json()
@@ -75,6 +76,10 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
     }
 
     assert fetched_map.status_code == 200
+    assert fetched_board.status_code == 200
+    fetched_board_payload = fetched_board.json()
+    assert len(fetched_board_payload["items"]) == 4
+    assert {item["title"] for item in fetched_board_payload["items"]} == {"Archive Room", "Garden Gate", "Journalist Ren", "Caretaker Mo"}
     fetched_map_payload = fetched_map.json()
     locations_by_key = {item["key"]: item for item in fetched_map_payload["locations"]}
     connections = fetched_map_payload["connections"]

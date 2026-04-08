@@ -39,6 +39,7 @@ EXPECTED_COLUMNS = {
     "location": {"key"},
     "clue": {"key", "discovery_rule"},
     "session": {"truth_payload"},
+    "board_item": {"title", "content"},
 }
 
 
@@ -75,6 +76,9 @@ def test_alembic_upgrade_applies_fixed_schema_snapshot():
 
             location_columns = {column["name"] for column in inspector.get_columns("location")}
             assert "key" in location_columns
+
+            board_item_columns = {column["name"] for column in inspector.get_columns("board_item")}
+            assert {"title", "content"}.issubset(board_item_columns)
         finally:
             engine.dispose()
     finally:

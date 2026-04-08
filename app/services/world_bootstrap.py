@@ -64,9 +64,10 @@ class BootstrapResult:
 class WorldBootstrapService:
     """通过多轮 AGENT 生成并装配完整游戏世界。"""
 
-    def __init__(self, uow_factory, generation_runtime: GameGenerationRuntime):
+    def __init__(self, uow_factory, generation_runtime: GameGenerationRuntime, board_auto_sync_service=None):
         self._uow_factory = uow_factory
         self._generation_runtime = generation_runtime
+        self._board_auto_sync_service = board_auto_sync_service
 
     def create_draft_session(self, progress_callback: ProgressCallback = None) -> DraftSessionResult:
         self._emit_progress(progress_callback, "session_creating")
@@ -227,6 +228,10 @@ class WorldBootstrapService:
         )
         player.detective_board = DetectiveBoardModel(board_layout_version=1)
         db_session.add(player)
+        db_session.flush()
+
+        if self._board_auto_sync_service is not None:
+            self._board_auto_sync_service.sync_bootstrap(player=player, game_map=game_map)
 
         characters_by_key = {"player": player_character}
         npc_models: list[NpcModel] = []

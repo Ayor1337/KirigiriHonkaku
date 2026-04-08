@@ -198,6 +198,8 @@ class BoardItemModel(IdMixin, AuditMixin, Base):
     board_id: Mapped[str] = mapped_column(ForeignKey("detective_board.id"), nullable=False)
     target_type: Mapped[str] = mapped_column(String(64), nullable=False)
     target_ref_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    content: Mapped[str | None] = mapped_column(Text)
     position_x: Mapped[float | None] = mapped_column()
     position_y: Mapped[float | None] = mapped_column()
     group_key: Mapped[str | None] = mapped_column(String(128))

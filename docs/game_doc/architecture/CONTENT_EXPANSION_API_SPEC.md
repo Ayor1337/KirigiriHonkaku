@@ -325,8 +325,14 @@ POST /api/v1/sessions
 - 返回当前会话玩家的侦探板完整快照
 - 仅在会话完成 bootstrap 且玩家侦探板已创建后可读
 - 返回结构包含 `board_layout_version`、`items`、`links`、`notes`
-- 当前 `board item` 仅支持引用现有实体，不承载自由文本内容
-- 自由输入内容统一通过 `notes` 返回
+- `board_item` 当前持久化字段包括：`target_type`、`target_ref_id`、`title`、`content`、`position_x`、`position_y`、`group_key`
+- `board_note` 当前只持久化 `content` 与坐标
+- bootstrap 完成后，系统会自动把起始场景下当前可达的地点写入 `board_item`
+- 后续成功动作后，系统会继续自动补齐：
+  - 当前场景里的可达地点
+  - 本次 `investigate` 新发现的 clue
+- 自动补齐按 `target_type + target_ref_id` 去重；已存在卡片不会重复新增
+- `board_item.title/content` 为系统生成并持久化的快照字段，不由前端手工维护
 
 失败语义：
 
@@ -342,6 +348,9 @@ POST /api/v1/sessions
 - 本接口只负责持久化 board，不触发 `action`、引擎结算或 AI 生成
 - `items[].client_key` 仅用于本次请求内建立 link 引用关系，不会原样持久化
 - 当前支持的 `target_type` 为 `player / npc / clue / location`
+- `items[]` 由前端提交实体引用与布局信息；`title/content` 不作为可写输入字段
+- 后端会依据目标实体自动补全并持久化 `title/content`
+- `target_ref_id` 当前仍要求传当前 session 内目标实体的真实数据库 UUID
 
 失败语义：
 
@@ -412,5 +421,6 @@ POST /api/v1/sessions
 - 新增 `POST /sessions/bootstrap-stream`，用于首页实时创建与阶段显示
 - 玩家详情、地图详情、暴露度、已见过 NPC 列表、聊天记录与侦探板都已拆到独立读取接口
 - 新增 `GET /sessions/{id}/board` 与 `PUT /sessions/{id}/board`，用于侦探板独立持久化
+- `board_item` 现在持久化 `title/content`，并在 bootstrap 与成功动作后自动补齐地点/线索卡片
 - `bootstrap` 兼容接口继续保留，但不再是首页新建流程的首选入口
 - 前端阶段名称不由后端返回，而是由前端基于占位符自行翻译

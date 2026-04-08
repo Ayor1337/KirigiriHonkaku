@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from app.models import BoardItemModel, BoardLinkModel, BoardNoteModel, DetectiveBoardModel
 from app.schemas.board import BoardSaveRequest, SessionBoardResponse
 
@@ -17,7 +15,7 @@ class BoardValidationError(ValueError):
 
 
 class BoardService:
-    """负责侦探板的读取与整板覆盖保存。"""
+    """负责侦探板读取与整板覆盖保存。"""
 
     SUPPORTED_TARGET_TYPES = {"player", "npc", "clue", "location"}
 
@@ -48,8 +46,8 @@ class BoardService:
             if board is None:
                 raise DetectiveBoardNotFoundError(session_id)
 
-            entity_index = self._build_entity_index(uow, player)
-            self._validate_payload(payload, entity_index)
+            entity_catalog = self._build_entity_catalog(uow, player)
+            self._validate_payload(payload, entity_catalog)
 
             board.board_layout_version = payload.board_layout_version
             board.links.clear()
@@ -59,9 +57,12 @@ class BoardService:
 
             item_by_client_key: dict[str, BoardItemModel] = {}
             for item in payload.items:
+                metadata = entity_catalog[item.target_type][str(item.target_ref_id)]
                 board_item = BoardItemModel(
                     target_type=item.target_type,
                     target_ref_id=str(item.target_ref_id),
+                    title=metadata["title"],
+                    content=metadata["content"],
                     position_x=item.position_x,
                     position_y=item.position_y,
                     group_key=item.group_key,
@@ -93,16 +94,41 @@ class BoardService:
             uow.commit()
             return response
 
-    def _build_entity_index(self, uow, player) -> dict[str, set[str]]:
+    def _build_entity_catalog(self, uow, player) -> dict[str, dict[str, dict[str, str | None]]]:
         game_map = uow.maps.get_by_session(str(player.session_id))
+        npcs = uow.npcs.list_by_session(str(player.session_id))
+        clues = uow.clues.list_by_session(str(player.session_id))
         return {
-            "player": {str(player.id)},
-            "npc": {str(item.id) for item in uow.npcs.list_by_session(str(player.session_id))},
-            "clue": {str(item.id) for item in uow.clues.list_by_session(str(player.session_id))},
-            "location": {str(item.id) for item in (game_map.locations if game_map is not None else [])},
+            "player": {
+                str(player.id): {
+                    "title": player.character.display_name,
+                    "content": player.character.public_identity or player.background_text,
+                }
+            },
+            "npc": {
+                str(item.id): {
+                    "title": item.character.display_name,
+                    "content": item.character.public_identity or item.profile_markdown or item.role_type,
+                }
+                for item in npcs
+            },
+            "clue": {
+                str(item.id): {
+                    "title": item.name,
+                    "content": item.description or item.name,
+                }
+                for item in clues
+            },
+            "location": {
+                str(item.id): {
+                    "title": item.name,
+                    "content": item.description,
+                }
+                for item in (game_map.locations if game_map is not None else [])
+            },
         }
 
-    def _validate_payload(self, payload: BoardSaveRequest, entity_index: dict[str, set[str]]) -> None:
+    def _validate_payload(self, payload: BoardSaveRequest, entity_catalog: dict[str, dict[str, dict[str, str | None]]]) -> None:
         client_keys: set[str] = set()
         for item in payload.items:
             if item.client_key in client_keys:
@@ -111,7 +137,7 @@ class BoardService:
 
             if item.target_type not in self.SUPPORTED_TARGET_TYPES:
                 raise BoardValidationError("Unsupported board item target type.")
-            if str(item.target_ref_id) not in entity_index[item.target_type]:
+            if str(item.target_ref_id) not in entity_catalog[item.target_type]:
                 raise BoardValidationError("Board item target does not exist in current session.")
 
         for link in payload.links:
@@ -131,6 +157,8 @@ class BoardService:
                     "id": item.id,
                     "target_type": item.target_type,
                     "target_ref_id": item.target_ref_id,
+                    "title": item.title,
+                    "content": item.content,
                     "position_x": item.position_x,
                     "position_y": item.position_y,
                     "group_key": item.group_key,
@@ -157,4 +185,3 @@ class BoardService:
                 for item in notes
             ],
         )
-

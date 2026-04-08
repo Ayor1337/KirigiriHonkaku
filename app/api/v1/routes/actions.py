@@ -26,6 +26,17 @@ def submit_action(payload: ActionRequest, request: Request) -> ActionResult:
 
         engine_result = container.game_engine.process(payload, session, uow)
         narrative_result = container.narrative_service.run(payload, session, engine_result, uow)
+        if engine_result.status == "accepted":
+            player = uow.players.get_by_session(payload.session_id)
+            game_map = uow.maps.get_by_session(payload.session_id)
+            if player is not None and game_map is not None:
+                container.board_auto_sync_service.sync_after_action(
+                    player=player,
+                    game_map=game_map,
+                    clues=uow.clues.list_by_session(payload.session_id),
+                    scene_snapshot=engine_result.scene_snapshot,
+                    state_delta_summary=engine_result.state_delta_summary,
+                )
         uow.commit()
         return ActionResult(
             status=engine_result.status,

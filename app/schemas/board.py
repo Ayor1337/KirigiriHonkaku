@@ -9,6 +9,8 @@ class BoardItemResponse(BaseModel):
     id: UUID
     target_type: str
     target_ref_id: UUID
+    title: str
+    content: str | None = None
     position_x: float | None = None
     position_y: float | None = None
     group_key: str | None = None
