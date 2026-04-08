@@ -38,6 +38,7 @@ def test_bootstrap_world_builds_minimal_world_state_and_marks_session_ready(app)
     fetched_payload = fetched.json()
     assert fetched_payload["status"] == "ready"
     assert fetched_payload["title"].startswith("Generated Case ")
+    assert fetched_payload["story_markdown"]
     assert fetched_payload["root_ids"] == payload["root_ids"]
     assert "player" not in fetched_payload
     assert "map" not in fetched_payload

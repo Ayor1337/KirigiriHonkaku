@@ -19,6 +19,8 @@
 - `GET /api/v1/sessions/{session_id}/npcs`
 - `GET /api/v1/sessions/{session_id}/dialogues`
 - `GET /api/v1/sessions/{session_id}/dialogues/{dialogue_id}`
+- `GET /api/v1/sessions/{session_id}/board`
+- `PUT /api/v1/sessions/{session_id}/board`
 - `POST /api/v1/actions`
 
 当前版本不新增：
@@ -26,7 +28,6 @@
 - 后台异步任务系统
 - 独立任务轮询接口
 - 模板列表查询接口
-- 侦探板接口
 - 知识池接口
 - 隐藏区域专用动作接口
 
@@ -52,6 +53,7 @@ POST /api/v1/sessions
 - 生成 `uuid`
 - 返回当前状态 `draft`
 - `title` 初始允许为 `null`
+- `story_markdown` 初始为 `null`
 - `root_ids` 初始为空对象 `{}`
 
 成功响应示例：
@@ -64,6 +66,7 @@ POST /api/v1/sessions
   "status": "draft",
   "start_time_minute": 0,
   "current_time_minute": 0,
+  "story_markdown": null,
   "root_ids": {}
 }
 ```
@@ -108,52 +111,10 @@ POST /api/v1/sessions
 - `world_persisting`
 - `world_ready`
 
-阶段流示例：
-
-```text
-event: stage
-data: {"placeholder":"session_creating"}
-
-event: stage
-data: {"placeholder":"session_created","session_id":"..."}
-
-event: stage
-data: {"placeholder":"world_planning","session_id":"..."}
-
-event: stage
-data: {"placeholder":"world_generating","session_id":"..."}
-
-event: stage
-data: {"placeholder":"world_validating","session_id":"...","attempt":1,"max_attempts":3}
-
-event: stage
-data: {"placeholder":"world_persisting","session_id":"..."}
-
-event: stage
-data: {"placeholder":"world_ready","session_id":"..."}
-
-event: complete
-data: {"session_id":"...","status":"ready","created_counts":{"characters":3},"root_ids":{"player_id":"...","map_id":"..."}}
-```
-
 `complete` 事件语义：
 
 - 与 `POST /api/v1/sessions/{session_id}/bootstrap` 的成功响应等价
 - 前端可直接从 `root_ids.player_id` 和 `session_id` 进入游戏
-
-`error` 事件字段：
-
-- `code`
-- `message`
-- `session_id`：若空会话已创建则返回
-- `failed_placeholder`：失败发生时最近一个阶段占位符
-
-`error` 示例：
-
-```text
-event: error
-data: {"code":"generation_failed","message":"Generated world blueprint failed validation.","session_id":"...","failed_placeholder":"world_validating"}
-```
 
 失败语义：
 
@@ -170,15 +131,9 @@ data: {"code":"generation_failed","message":"Generated world blueprint failed va
 
 - 返回全部会话的基础状态列表
 - 响应体为数组，不额外包裹 `items/total`
-- 默认按 `created_at` 倒序（最新创建的会话在前）
-- 列表项不包含 `data_directories`
+- 默认按 `created_at` 倒序
 - 列表项不包含 `root_ids`
-
-示例：
-
-```http
-GET /api/v1/sessions
-```
+- 列表项不包含 `story_markdown`
 
 成功响应示例：
 
@@ -213,6 +168,7 @@ GET /api/v1/sessions
 - 通过多轮 AGENT 生成完整可玩的游戏世界
 - 生成正式 `title`
 - 生成地图、NPC、线索、事件与 truth payload
+- 生成并落库 `story_markdown`
 - 校验结构合法性后一次性落库
 - 成功后将会话状态切为 `ready`
 
@@ -253,33 +209,20 @@ GET /api/v1/sessions
 - `502`：AGENT 返回内容无法解析为结构化结果
 - `503`：模型 provider 不可用、超时或调用失败
 
-`422` 示例：
-
-```json
-{
-  "detail": {
-    "message": "Generated world blueprint failed validation.",
-    "errors": [
-      "truth.required_clue_keys must contain at least one clue key."
-    ]
-  }
-}
-```
-
 ## 6. 会话读取
 
 ### 6.1 `GET /api/v1/sessions/{session_id}`
 
 说明：
 
-- 只返回会话基础状态与根 ID 信息
+- 返回会话基础状态、开场文案与根 ID 信息
 - `title` 在 `draft / generating` 阶段允许为 `null`
+- `story_markdown` 在 `draft / generating` 阶段允许为 `null`
+- `story_markdown` 在 `ready / ended` 阶段用于给前端展示故事开场
 - `root_ids` 在会话未完成 bootstrap 时允许为空对象 `{}`
-- 不再返回 `player`
-- 不再返回 `map`
-- 不再返回顶层 `exposure_value / exposure_level`
-- 不再返回 `data_directories`
-- 可用于确认 bootstrap 失败后状态是否已回退为 `draft`
+- 不返回 `player`
+- 不返回 `map`
+- 不返回顶层 `exposure_value / exposure_level`
 
 成功响应示例（`draft`）：
 
@@ -291,6 +234,7 @@ GET /api/v1/sessions
   "status": "draft",
   "start_time_minute": 0,
   "current_time_minute": 0,
+  "story_markdown": null,
   "root_ids": {}
 }
 ```
@@ -305,6 +249,7 @@ GET /api/v1/sessions
   "status": "ready",
   "start_time_minute": 0,
   "current_time_minute": 15,
+  "story_markdown": "# Generated Case 4f26c2ad\n\n你来到 Entrance Hall...",
   "root_ids": {
     "player_id": "...",
     "map_id": "..."
@@ -320,15 +265,6 @@ GET /api/v1/sessions
 - 当前只包含暴露度字段
 - 只要会话存在，无论 `draft / generating / ready / ended` 都可读取
 
-成功响应示例：
-
-```json
-{
-  "exposure_value": 0,
-  "exposure_level": "low"
-}
-```
-
 ### 6.3 `GET /api/v1/sessions/{session_id}/player`
 
 说明：
@@ -336,30 +272,6 @@ GET /api/v1/sessions
 - 返回当前会话玩家详情
 - 仅在会话完成 bootstrap 后可读
 - 若会话存在但玩家尚未生成，返回 `404`
-
-成功响应示例：
-
-```json
-{
-  "id": "...",
-  "character_id": "...",
-  "display_name": "Detective Kirigiri",
-  "public_identity": "Independent Detective",
-  "template_key": "case-manor",
-  "template_name": "Detective",
-  "trait_text": "冷静、谨慎、擅长交叉验证证词。",
-  "background_text": "受邀前来调查庄园中的异常事件。",
-  "current_location_id": "...",
-  "current_location_name": "Entrance Hall",
-  "exposure_value": 0,
-  "exposure_level": "low"
-}
-```
-
-失败语义：
-
-- `404`：会话不存在
-- `404`：会话存在但玩家尚未生成，detail 为 `Player not found for session.`
 
 ### 6.4 `GET /api/v1/sessions/{session_id}/map`
 
@@ -369,48 +281,6 @@ GET /api/v1/sessions
 - 仅在会话完成 bootstrap 后可读
 - 若会话存在但地图尚未生成，返回 `404`
 
-成功响应示例：
-
-```json
-{
-  "id": "...",
-  "template_key": "map-manor",
-  "display_name": "Moonview Manor",
-  "locations": [
-    {
-      "id": "...",
-      "key": "archive-room",
-      "parent_location_id": "...",
-      "name": "Archive Room",
-      "description": "存放旧档案和纸质材料的房间。",
-      "location_type": "interior",
-      "visibility_level": "restricted",
-      "is_hidden": false,
-      "status_flags": {}
-    }
-  ],
-  "connections": [
-    {
-      "id": "...",
-      "from_location_id": "...",
-      "to_location_id": "...",
-      "connection_type": "door",
-      "access_rule": {},
-      "is_hidden": false,
-      "is_locked": false,
-      "is_one_way": false,
-      "is_dangerous": false,
-      "time_window_rule": {}
-    }
-  ]
-}
-```
-
-失败语义：
-
-- `404`：会话不存在
-- `404`：会话存在但地图尚未生成，detail 为 `Map not found for session.`
-
 ### 6.5 `GET /api/v1/sessions/{session_id}/npcs`
 
 说明：
@@ -418,34 +288,7 @@ GET /api/v1/sessions
 - 返回当前会话中所有 `has_met_player = true` 的 NPC
 - 按 NPC 创建顺序返回
 - 会话存在但尚未见过任何 NPC 时返回空数组 `[]`
-- draft 会话也可调用，结果通常为空数组
-
-成功响应示例：
-
-```json
-[
-  {
-    "id": "...",
-    "character_id": "...",
-    "template_key": "journalist",
-    "display_name": "Journalist Ren",
-    "public_identity": "Freelance Reporter",
-    "current_location_id": "...",
-    "current_location_name": "Archive Room",
-    "has_met_player": true
-  }
-]
-```
-
-空列表示例：
-
-```json
-[]
-```
-
-失败语义：
-
-- `404`：会话不存在
+- `draft` 会话也可调用，结果通常为空数组
 
 ### 6.6 `GET /api/v1/sessions/{session_id}/dialogues`
 
@@ -453,30 +296,7 @@ GET /api/v1/sessions
 
 - 返回当前会话中的聊天会话列表
 - 按最近活跃时间倒序返回
-- draft 会话或尚无聊天记录时返回空数组 `[]`
-
-成功响应示例：
-
-```json
-[
-  {
-    "dialogue_id": "...",
-    "target_npc_key": "journalist",
-    "target_npc_name": "Journalist Ren",
-    "location_id": "...",
-    "location_key": "archive-room",
-    "location_name": "Archive Room",
-    "start_minute": 5,
-    "end_minute": 15,
-    "utterance_count": 4,
-    "last_utterance_preview": "关于你刚才提到的事，我现在只能告诉你……"
-  }
-]
-```
-
-失败语义：
-
-- `404`：会话不存在
+- `draft` 会话或尚无聊天记录时返回空数组 `[]`
 
 ### 6.7 `GET /api/v1/sessions/{session_id}/dialogues/{dialogue_id}`
 
@@ -484,49 +304,7 @@ GET /api/v1/sessions
 
 - 返回单个聊天会话详情
 - 详情主体为结构化 `utterances`
-- 不再返回 `summary_file_path / transcript_file_path`
-
-成功响应示例：
-
-```json
-{
-  "dialogue_id": "...",
-  "target_npc_key": "journalist",
-  "target_npc_name": "Journalist Ren",
-  "location_id": "...",
-  "location_key": "archive-room",
-  "location_name": "Archive Room",
-  "start_minute": 5,
-  "end_minute": 15,
-  "utterance_count": 4,
-  "last_utterance_preview": "关于你刚才提到的事，我现在只能告诉你……",
-  "tag_flags": {
-    "tone": "guarded"
-  },
-  "utterances": [
-    {
-      "sequence_no": 1,
-      "speaker_role": "player",
-      "speaker_name": "Detective Kirigiri",
-      "content": "昨晚你看到了什么？",
-      "tone_tag": "probing",
-      "utterance_flags": {
-        "source": "player-input"
-      }
-    },
-    {
-      "sequence_no": 2,
-      "speaker_role": "npc",
-      "speaker_name": "Journalist Ren",
-      "content": "关于你刚才提到的事，我现在只能告诉你……",
-      "tone_tag": "guarded",
-      "utterance_flags": {
-        "source": "fallback"
-      }
-    }
-  ]
-}
-```
+- 不返回 `summary_file_path / transcript_file_path`
 
 失败语义：
 
@@ -539,6 +317,38 @@ GET /api/v1/sessions
 - `generating`
 - `ready`
 - `ended`
+
+### 6.8 `GET /api/v1/sessions/{session_id}/board`
+
+说明：
+
+- 返回当前会话玩家的侦探板完整快照
+- 仅在会话完成 bootstrap 且玩家侦探板已创建后可读
+- 返回结构包含 `board_layout_version`、`items`、`links`、`notes`
+- 当前 `board item` 仅支持引用现有实体，不承载自由文本内容
+- 自由输入内容统一通过 `notes` 返回
+
+失败语义：
+
+- `404`：会话不存在
+- `404`：会话存在但侦探板尚不可用，detail 为 `Board not found for session.`
+
+### 6.9 `PUT /api/v1/sessions/{session_id}/board`
+
+说明：
+
+- 以整板覆盖方式保存当前侦探板
+- 请求体必须提交完整 `items / links / notes` 快照
+- 本接口只负责持久化 board，不触发 `action`、引擎结算或 AI 生成
+- `items[].client_key` 仅用于本次请求内建立 link 引用关系，不会原样持久化
+- 当前支持的 `target_type` 为 `player / npc / clue / location`
+
+失败语义：
+
+- `404`：会话不存在
+- `404`：会话存在但侦探板尚不可用，detail 为 `Board not found for session.`
+- `422`：`target_ref_id` 不属于当前会话，detail 为 `Board item target does not exist in current session.`
+- `422`：link 指向未在本次请求中声明的 item
 
 ## 7. 动作提交
 
@@ -577,7 +387,7 @@ GET /api/v1/sessions
 - `raw_output_text`
 - `result`
 
-当前 `POST /api/v1/actions` 响应不再返回 `storage_refs`。
+当前 `POST /api/v1/actions` 响应不返回 `storage_refs`。
 
 ### 7.4 `talk` 动作补充约定
 
@@ -597,14 +407,10 @@ GET /api/v1/sessions
 当前版本对外 API 的关键变化是：
 
 - `POST /sessions` 继续保留为空请求体创建空会话
+- `GET /sessions/{id}` 现在直接返回 `story_markdown`
+- `GET /sessions` 列表仍保持轻量，不返回 `story_markdown`
 - 新增 `POST /sessions/bootstrap-stream`，用于首页实时创建与阶段显示
-- `GET /sessions` 继续返回全部会话列表
-- `GET /sessions/{id}` 继续返回 `root_ids`，用于前端继续游戏
-- 玩家详情、地图详情、暴露度、已见过 NPC 列表与聊天记录已拆到独立读取接口
+- 玩家详情、地图详情、暴露度、已见过 NPC 列表、聊天记录与侦探板都已拆到独立读取接口
+- 新增 `GET /sessions/{id}/board` 与 `PUT /sessions/{id}/board`，用于侦探板独立持久化
 - `bootstrap` 兼容接口继续保留，但不再是首页新建流程的首选入口
 - 前端阶段名称不由后端返回，而是由前端基于占位符自行翻译
-
-
-
-
-

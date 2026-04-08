@@ -24,6 +24,7 @@ def test_get_session_returns_existing_session(app):
     payload = fetched.json()
     assert payload["id"] == created["id"]
     assert payload["title"] is None
+    assert payload["story_markdown"] is None
     assert payload["root_ids"] == {}
     assert "player" not in payload
     assert "map" not in payload

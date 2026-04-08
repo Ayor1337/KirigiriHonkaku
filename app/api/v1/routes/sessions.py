@@ -182,6 +182,7 @@ def get_session(session_id: str, request: Request) -> SessionResponse:
             status=session.status,
             start_time_minute=session.start_time_minute,
             current_time_minute=session.current_time_minute,
+            story_markdown=session.story_markdown,
             root_ids=root_ids,
         )
 

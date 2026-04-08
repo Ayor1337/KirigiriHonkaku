@@ -131,6 +131,7 @@ class SessionMapResponse(BaseModel):
 class SessionResponse(SessionSummaryResponse):
     """会话基础详情接口返回结构。"""
 
+    story_markdown: str | None = None
     root_ids: dict[str, str] = Field(default_factory=dict)
 
 

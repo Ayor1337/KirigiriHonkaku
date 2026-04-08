@@ -15,6 +15,7 @@ from app.db.session import create_db_engine, create_session_factory
 from app.engine.service import GameEngine
 from app.models import *  # noqa: F403
 from app.repositories.uow import SqlAlchemyUnitOfWork
+from app.services.board import BoardService
 from app.services.narrative import NarrativeService
 from app.services.world_bootstrap import WorldBootstrapService
 from app.services.world_state import WorldStateService
@@ -30,6 +31,7 @@ class AppContainer:
     ai_runtime: NarrativeRuntime
     game_generation_runtime: GameGenerationRuntime
     narrative_service: NarrativeService
+    board_service: BoardService
     world_bootstrap_service: WorldBootstrapService
     world_state_service: WorldStateService
     uow_factory: Callable[[], SqlAlchemyUnitOfWork]
@@ -61,6 +63,7 @@ def build_container(settings: Settings) -> AppContainer:
         ai_runtime=ai_runtime,
         game_generation_runtime=game_generation_runtime,
         narrative_service=narrative_service,
+        board_service=BoardService(uow_factory),
         world_bootstrap_service=WorldBootstrapService(uow_factory, game_generation_runtime),
         world_state_service=WorldStateService(uow_factory),
         uow_factory=uow_factory,
