@@ -1,4 +1,4 @@
-import main
+from app import main
 
 
 def test_main_entrypoint_invokes_uvicorn(monkeypatch):

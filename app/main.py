@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
+import uvicorn
 from fastapi import FastAPI
 
 from app.ai.game_generation import GameGenerationRuntime, create_game_generation_runtime
@@ -100,4 +101,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
+def main() -> None:
+    """以脚本方式启动本地开发服务。"""
+
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)
+
+
 app = create_app()
+
+
+if __name__ == "__main__":
+    main()
